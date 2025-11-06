@@ -2,160 +2,328 @@
 Telegram bot handlers для обработки сообщений пользователя.
 """
 import asyncio
+import logging
 from aiogram import Router, F
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message
+from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 
 from app.bot.states import ConversationState
-from app.llm.client import llm_client
+from app.agents.orchestrator import AgentOrchestrator
+from app.game.character import CharacterSheet
+from app.config.prompts import UIPrompts, CombatPrompts
 
+
+# Logger
+logger = logging.getLogger(__name__)
 
 # Router для всех handlers
 router = Router()
 
+# Global orchestrator instance
+orchestrator = AgentOrchestrator()
+
 
 @router.message(Command("start"))
 async def cmd_start(message: Message, state: FSMContext):
-    """
-    Handler для команды /start - инициализация бота.
-    """
-    await state.set_state(ConversationState.in_conversation)
+    """Handler для команды /start с inline keyboard."""
+    await state.set_state(ConversationState.idle)
+    
+    # Create inline keyboard
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⚔️ Новое приключение", callback_data="new_adventure")],
+        [InlineKeyboardButton(text="📖 Продолжить игру", callback_data="continue_game")],
+        [InlineKeyboardButton(text="ℹ️ Помощь", callback_data="show_help")]
+    ])
+    
     await message.answer(
-        "🎲 Welcome, adventurer! I am your AI Game Master.\n\n"
-        "Tell me what you want to do, and I'll narrate your story.\n"
-        "Type /help for available commands."
+        UIPrompts.WELCOME,
+        reply_markup=keyboard,
+        parse_mode="Markdown"
     )
+
+
+@router.callback_query(F.data == "new_adventure")
+async def callback_new_adventure(callback: CallbackQuery, state: FSMContext):
+    """Start character creation."""
+    await callback.answer()
+    
+    # Create class selection keyboard
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⚔️ Воин", callback_data="class_warrior")],
+        [InlineKeyboardButton(text="🏹 Следопыт", callback_data="class_ranger")],
+        [InlineKeyboardButton(text="🔮 Маг", callback_data="class_mage")],
+        [InlineKeyboardButton(text="🗡️ Плут", callback_data="class_rogue")]
+    ])
+    
+    await callback.message.edit_text(
+        UIPrompts.CHARACTER_CREATION,
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
+
+
+@router.callback_query(F.data == "continue_game")
+async def callback_continue_game(callback: CallbackQuery, state: FSMContext):
+    """Continue existing game."""
+    await callback.answer()
+    
+    data = await state.get_data()
+    character_data = data.get("character")
+    
+    if not character_data:
+        await callback.message.edit_text(
+            "❌ У тебя ещё нет персонажа. Создай нового героя!",
+            parse_mode="Markdown"
+        )
+        return
+    
+    await state.set_state(ConversationState.in_conversation)
+    await callback.message.edit_text(
+        "📖 **Игра продолжается!**\n\nЧто ты хочешь сделать?",
+        parse_mode="Markdown"
+    )
+
+
+@router.callback_query(F.data == "show_help")
+async def callback_show_help(callback: CallbackQuery):
+    """Show help message."""
+    await callback.answer()
+    await callback.message.edit_text(UIPrompts.HELP, parse_mode="Markdown")
+
+
+@router.callback_query(F.data.startswith("class_"))
+async def callback_select_class(callback: CallbackQuery, state: FSMContext):
+    """Handle class selection."""
+    await callback.answer()
+    
+    class_name = callback.data.replace("class_", "")
+    
+    # Create character with class-specific stats
+    class_stats = {
+        "warrior": {
+            "strength": 16, 
+            "constitution": 14, 
+            "hp": 25, 
+            "max_hp": 25,
+            "armor_class": 14,
+            "class_name": "Воин",
+            "emoji": "⚔️"
+        },
+        "ranger": {
+            "dexterity": 16, 
+            "wisdom": 14, 
+            "hp": 22, 
+            "max_hp": 22,
+            "armor_class": 13,
+            "class_name": "Следопыт",
+            "emoji": "🏹"
+        },
+        "mage": {
+            "intelligence": 16, 
+            "wisdom": 14, 
+            "hp": 16, 
+            "max_hp": 16,
+            "armor_class": 10,
+            "class_name": "Маг",
+            "emoji": "🔮"
+        },
+        "rogue": {
+            "dexterity": 16, 
+            "charisma": 14, 
+            "hp": 18, 
+            "max_hp": 18,
+            "armor_class": 12,
+            "class_name": "Плут",
+            "emoji": "🗡️"
+        },
+    }
+    
+    stats = class_stats.get(class_name, class_stats["warrior"])
+    user_name = callback.from_user.first_name or "Искатель приключений"
+    
+    # Create character
+    character = CharacterSheet(
+        telegram_user_id=callback.from_user.id,
+        name=user_name,
+        strength=stats.get("strength", 10),
+        dexterity=stats.get("dexterity", 10),
+        constitution=stats.get("constitution", 10),
+        intelligence=stats.get("intelligence", 10),
+        wisdom=stats.get("wisdom", 10),
+        charisma=stats.get("charisma", 10),
+        hp=stats["hp"],
+        max_hp=stats["max_hp"],
+        armor_class=stats["armor_class"],
+        location="ancient_ruins"
+    )
+    
+    # Initialize game state
+    game_state = {
+        "in_combat": False,
+        "enemies": [],
+        "location": "ancient_ruins",
+        "combat_ended": False
+    }
+    
+    # Save to state
+    await state.update_data(
+        character=character.model_dump_for_storage(),
+        game_state=game_state,
+        history=[]
+    )
+    await state.set_state(ConversationState.in_conversation)
+    
+    # Format character sheet message
+    intro_scene = UIPrompts.INTRO_SCENES.get(class_name, UIPrompts.INTRO_SCENES["warrior"])
+    
+    message_text = UIPrompts.CHARACTER_SHEET.format(
+        emoji=stats["emoji"],
+        name=character.name,
+        class_name=stats["class_name"],
+        hp=character.hp,
+        max_hp=character.max_hp,
+        strength=character.strength,
+        strength_mod=character.strength_mod,
+        dexterity=character.dexterity,
+        dexterity_mod=character.dexterity_mod,
+        constitution=character.constitution,
+        constitution_mod=character.constitution_mod,
+        intelligence=character.intelligence,
+        intelligence_mod=character.intelligence_mod,
+        wisdom=character.wisdom,
+        wisdom_mod=character.wisdom_mod,
+        charisma=character.charisma,
+        charisma_mod=character.charisma_mod,
+        intro_scene=intro_scene
+    )
+    
+    await callback.message.edit_text(message_text, parse_mode="Markdown")
 
 
 @router.message(Command("help"))
 async def cmd_help(message: Message):
-    """
-    Handler для команды /help - показать доступные команды.
-    """
-    help_text = (
-        "🎮 **Available Commands:**\n\n"
-        "/start - Start or restart conversation\n"
-        "/help - Show this help message\n"
-        "/reset - Clear conversation history\n"
-        "/ping - Check bot status\n\n"
-        "Just send me a message to continue your adventure!"
-    )
-    await message.answer(help_text, parse_mode="Markdown")
+    """Handler для команды /help."""
+    await message.answer(UIPrompts.HELP, parse_mode="Markdown")
 
 
 @router.message(Command("ping"))
 async def cmd_ping(message: Message):
-    """
-    Handler для команды /ping - проверка работоспособности бота.
-    """
+    """Handler для команды /ping."""
     await message.answer("🟢 Bot is online and ready!")
-
-
 
 @router.message(Command("reset"))
 async def cmd_reset(message: Message, state: FSMContext):
-    """
-    Handler для команды /reset - очистка истории и сброс состояния.
-    """
+    """Handler для команды /reset."""
     await state.clear()
     await state.set_state(ConversationState.idle)
-    await message.answer("✨ Conversation reset! Use /start to begin a new adventure.")
+    await message.answer("✨ Игра сброшена! Используй /start для нового приключения.")
 
 
-@router.message(
-    ConversationState.in_conversation,
-    F.text  # Только текстовые сообщения
-)
+@router.message(ConversationState.in_conversation, F.text)
 async def handle_conversation(message: Message, state: FSMContext):
-    """
-    Main handler для диалога с игроком в активном состоянии.
-    Отправляет сообщение пользователя в LLM и возвращает ответ.
-    """
+    """Main handler with agent system and game state tracking."""
     user_message = message.text
     
-    # Получаем историю из FSM context (пока простая реализация)
+    # Get data from state
     data = await state.get_data()
-    conversation_history = data.get("history", [])
+    character_data = data.get("character")
     
-    # Добавляем системный промпт (базовый для MVP)
-    if not conversation_history:
-        conversation_history.append({
-            "role": "system",
-            "content": (
-                "Вы опытный гейм-мастер, управляющий фэнтезийной ролевой игрой."
-                "Рассказывайте историю живо, реагируйте на действия игроков и создавайте захватывающие сценарии."
-                "Пусть ваши ответы будут лаконичными (максимум 2–3 абзаца)."
-            )
-        })
+    if not character_data:
+        await message.answer(UIPrompts.ERROR_NO_CHARACTER)
+        return
     
-    # Добавляем сообщение пользователя
-    conversation_history.append({
-        "role": "user",
-        "content": user_message
+    character = CharacterSheet(**character_data)
+    
+    # Get game state (initialize if doesn't exist)
+    game_state = data.get("game_state", {
+        "in_combat": False,
+        "enemies": [],
+        "location": character.location,
+        "combat_ended": False
     })
     
-    # Запускаем typing indicator в фоне
-    typing_task = asyncio.create_task(
-        _send_typing_indicator(message)
-    )
+    # Get history
+    history = data.get("history", [])
+    recent_messages = [msg["content"] for msg in history[-5:] if msg["role"] == "assistant"]
+    
+    # Typing indicator
+    typing_task = asyncio.create_task(_send_typing_indicator(message))
     
     try:
-        # Получаем ответ от LLM
-        gm_response = await llm_client.get_completion(
-            messages=conversation_history,
-            temperature=0.8,  # Creativity для narrative
-            max_tokens=600,
+        # Process через orchestrator with game_state
+        final_message, updated_character, updated_game_state = await orchestrator.process_action(
+            user_action=user_message,
+            character=character,
+            game_state=game_state,
+            recent_history=recent_messages
         )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Error processing action: {e}", exc_info=True)
+        await message.answer(UIPrompts.ERROR_GENERIC)
+        return
     finally:
-        # Останавливаем typing indicator
         typing_task.cancel()
         try:
             await typing_task
         except asyncio.CancelledError:
             pass
     
-    # Добавляем ответ GM в историю
-    conversation_history.append({
-        "role": "assistant",
-        "content": gm_response
-    })
+    # Check combat state changes
+    if not game_state.get("in_combat") and updated_game_state.get("in_combat"):
+        # Combat started
+        final_message = f"{CombatPrompts.COMBAT_START}\n\n{final_message}"
+    elif game_state.get("in_combat") and updated_game_state.get("combat_ended"):
+        # Combat ended
+        final_message = f"{final_message}\n\n{CombatPrompts.COMBAT_END}"
     
-    # Сохраняем обновленную историю (ограничение: последние 10 сообщений)
-    if len(conversation_history) > 21:  # system + 10 pairs
-        conversation_history = [conversation_history[0]] + conversation_history[-20:]
+    # Check death
+    if not updated_character.is_alive():
+        final_message = f"{final_message}\n\n{CombatPrompts.PLAYER_DEATH}"
+        await state.clear()  # Reset game
     
-    await state.update_data(history=conversation_history)
+    # Save updated data
+    await state.update_data(
+        character=updated_character.model_dump_for_storage(),
+        game_state=updated_game_state
+    )
     
-    # Отправляем ответ игроку
-    await message.answer(gm_response)
+    # Update history
+    history.append({"role": "user", "content": user_message})
+    history.append({"role": "assistant", "content": final_message})
+    
+    if len(history) > 20:
+        history = history[-20:]
+    
+    await state.update_data(history=history)
+    
+    # Send response with fallback for invalid Markdown
+    try:
+        await message.answer(final_message, parse_mode="Markdown")
+    except Exception as e:
+        logger.warning(f"Markdown parsing failed: {e}. Sending as plain text.")
+        # Fallback: send as plain text without formatting
+        await message.answer(final_message, parse_mode=None)
 
 
 @router.message(ConversationState.idle)
 async def handle_idle_state(message: Message):
-    """
-    Handler для сообщений в idle состоянии.
-    Предлагает пользователю начать с /start.
-    """
+    """Handler для сообщений в idle состоянии."""
     await message.answer(
-        "👋 Hey there! Use /start to begin your adventure, "
-        "or /help to see available commands."
+        "👋 Привет! Используй /start чтобы начать приключение."
     )
 
 
 async def _send_typing_indicator(message: Message):
-    """
-    Вспомогательная функция для отправки typing indicator в цикле.
-    Запускается как фоновая задача и отменяется после получения ответа от LLM.
-    """
+    """Send typing indicator in loop until cancelled."""
     try:
         while True:
-            await message.bot.send_chat_action(
-                chat_id=message.chat.id,
-                action="typing"
-            )
-            # Typing indicator живет ~5 секунд, обновляем каждые 4 секунды
+            if message.bot:
+                await message.bot.send_chat_action(
+                    chat_id=message.chat.id,
+                    action="typing"
+                )
             await asyncio.sleep(4)
     except asyncio.CancelledError:
-        # Нормальное завершение при отмене задачи
         pass

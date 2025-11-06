@@ -41,6 +41,13 @@ AI-powered Game Master Telegram bot using Grok-4-fast via OpenRouter.
 - **OpenRouter**: LLM API gateway for Grok access
 - **UV**: Fast Python package manager
 
+## 🌍 Localization
+
+- **UI/UX:** Russian (все сообщения бота, промпты для игроков)
+- **Code:** English (код, документация, комментарии)
+- **Prompts:** Centralized in `app/config/prompts.py` (Russian)
+- **Model Config:** Centralized in `app/config/models.py` (per-agent settings)
+
 ## Features (Sprint 1)
 
 - ✅ Basic conversation with AI Game Master
@@ -51,8 +58,60 @@ AI-powered Game Master Telegram bot using Grok-4-fast via OpenRouter.
 - ✅ Error handling и logging
 - ✅ Rate limit обработка от OpenRouter
 
-## Next Steps (Sprint 2)
+## 📚 Documentation
 
-- Multi-agent architecture (CrewAI)
-- Game mechanics (dice rolls, character sheet)
-- Long-term memory (RAG + Vector DB)
+Full documentation is available in the `docs/` folder:
+
+- **[Strategic Plan](docs/STRATEGIC_PLAN.md)** — Architecture & roadmap (start here! 🚀)
+- **[Sprint 2 Spec](docs/SPRINT2_SPEC.md)** — Current sprint tasks
+- **[API Contracts](docs/API_CONTRACTS.md)** — Agent communication formats
+- **[Documentation Index](docs/README.md)** — Full documentation map
+
+## 🗺️ Roadmap
+
+### ✅ Sprint 1: Foundation (Completed)
+- Basic Telegram bot with LLM integration
+- FSM state management
+- Conversation history (short-term memory)
+- Basic commands and error handling
+
+### 🔄 Sprint 2: Multi-Agent System (In Progress)
+**Weeks:** 2-3
+
+**Goals:**
+- Multi-agent GM system (Rules Arbiter, Narrative Director, Response Synthesizer)
+- **LLM-based intent detection** (automatic combat/skill detection)
+- **Game state management** (combat tracking, location, enemies)
+- **Centralized prompts system** (all prompts in `app/config/prompts.py`)
+- **Per-agent model configuration** (temperature, max_tokens)
+- Game mechanics (d20 system, combat, skill checks)
+- Character creation with classes
+- Character sheet tracking (HP, stats, inventory)
+
+**See:** 
+- [docs/SPRINT2_SPEC.md](docs/SPRINT2_SPEC.md) — Main specification
+- [docs/SPRINT2_IMPROVEMENTS.md](docs/SPRINT2_IMPROVEMENTS.md) — Intent detection & combat state
+- [docs/SPRINT2_PROMPTS_CONFIG.md](docs/SPRINT2_PROMPTS_CONFIG.md) — Prompts & config system
+
+### ⏳ Sprint 3: Memory System + CrewAI (Planned)
+**Weeks:** 2-3
+
+**Goals:**
+- Long-term memory with RAG pipeline
+- Supabase PostgreSQL + pgvector
+- Memory Manager agent
+- Episodic & semantic memory
+- Multi-session continuity
+- **CrewAI integration** for production-grade orchestration
+
+### ⏳ Sprint 4: Production Ready (Planned)
+**Weeks:** 1-2
+
+**Goals:**
+- Production-optimized CrewAI configuration
+- Redis for FSM persistence
+- Webhooks instead of polling
+- Deploy to Railway/Render
+- Monitoring & cost tracking
+
+**See:** [docs/STRATEGIC_PLAN.md](docs/STRATEGIC_PLAN.md) for detailed roadmap
