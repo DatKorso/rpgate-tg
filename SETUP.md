@@ -26,7 +26,7 @@
 TELEGRAM_BOT_TOKEN=ВАШ_ТОКЕН_ОТ_BOTFATHER
 OPENROUTER_API_KEY=ВАШ_КЛЮЧ_ОТ_OPENROUTER
 SITE_URL=http://localhost:8000
-LLM_MODEL=x-ai/grok-beta-fast
+LLM_MODEL=x-ai/grok-4-fast
 ```
 
 ## Шаг 4: Запуск бота

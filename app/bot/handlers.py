@@ -209,8 +209,73 @@ async def cmd_help(message: Message):
 
 @router.message(Command("ping"))
 async def cmd_ping(message: Message):
-    """Handler для команды /ping."""
-    await message.answer("🟢 Bot is online and ready!")
+    """Handler для команды /ping с health check БД."""
+    status_lines = ["🏓 **Health Check**\n"]
+    
+    # Check bot
+    status_lines.append("✅ **Bot**: Online")
+    
+    # Check LLM API
+    from app.llm.client import llm_client
+    try:
+        # Quick test (just check if client is configured)
+        if llm_client.api_key:
+            status_lines.append("✅ **LLM API**: Configured")
+        else:
+            status_lines.append("⚠️ **LLM API**: Not configured")
+    except Exception:
+        status_lines.append("❌ **LLM API**: Error")
+    
+    # Check database
+    from app.config import settings
+    if settings.supabase_url and settings.supabase_key and settings.supabase_db_url:
+        try:
+            import asyncpg
+            # Try to connect
+            conn = await asyncpg.connect(settings.supabase_db_url, timeout=5.0)
+            
+            # Simple query to verify connection
+            version = await conn.fetchval("SELECT version()")
+            await conn.close()
+            
+            status_lines.append("✅ **Database**: Connected")
+            status_lines.append(f"   └─ PostgreSQL")
+            
+            # Check pgvector extension
+            conn = await asyncpg.connect(settings.supabase_db_url, timeout=5.0)
+            has_vector = await conn.fetchval(
+                "SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'vector')"
+            )
+            await conn.close()
+            
+            if has_vector:
+                status_lines.append("   └─ pgvector: Enabled")
+            else:
+                status_lines.append("   └─ ⚠️ pgvector: Not enabled")
+                
+        except ImportError:
+            status_lines.append("⚠️ **Database**: asyncpg not installed")
+            status_lines.append("   └─ Run: `uv add asyncpg`")
+        except asyncpg.exceptions.InvalidPasswordError:
+            status_lines.append("❌ **Database**: Invalid credentials")
+        except asyncpg.exceptions.CannotConnectNowError:
+            status_lines.append("❌ **Database**: Cannot connect")
+        except (OSError, ConnectionError) as e:
+            if "nodename nor servname" in str(e) or "Name or service not known" in str(e):
+                status_lines.append("❌ **Database**: DNS resolution failed")
+                status_lines.append("   └─ Check hostname in connection string")
+            else:
+                status_lines.append(f"❌ **Database**: Network error")
+                status_lines.append(f"   └─ {type(e).__name__}")
+        except Exception as e:
+            status_lines.append(f"❌ **Database**: Connection failed")
+            status_lines.append(f"   └─ {type(e).__name__}")
+    else:
+        status_lines.append("⚠️ **Database**: Not configured")
+        status_lines.append("   └─ See: docs/SPRINT3_SETUP_GUIDE.md")
+    
+    # Send status
+    await message.answer("\n".join(status_lines), parse_mode="Markdown")
 
 @router.message(Command("reset"))
 async def cmd_reset(message: Message, state: FSMContext):

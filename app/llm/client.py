@@ -23,6 +23,11 @@ class LLMClient:
             "HTTP-Referer": settings.site_url,
         }
     
+    @property
+    def api_key(self) -> str:
+        """Get API key for health checks."""
+        return settings.openrouter_api_key
+    
     async def get_completion(
         self,
         messages: list[dict[str, str]],

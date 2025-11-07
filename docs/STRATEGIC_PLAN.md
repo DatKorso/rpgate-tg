@@ -6,19 +6,24 @@
 
 ## 📊 Executive Summary
 
-**Цель проекта:** Создать MVP Telegram бота с AI Game Master, способного вести долгие нарративные сессии с элементами игровых механик.
+**Цель проекта:** Создать MVP Telegram бота с AI Game Master, способного вести долгие нарративные сессии с элементами игровых механик и долгосрочной памятью.
 
-**Текущий статус:** Sprint 1 ✅ завершен (базовый бот + LLM интеграция)
+**Текущий статус:** 
+- Sprint 1 ✅ завершен (базовый бот + LLM интеграция)
+- Sprint 2 ✅ завершен (мульти-агентная архитектура + игровые механики)
+- Sprint 3 🔄 в процессе (память + persistence)
 
-**Следующий этап:** Sprint 2 — Мульти-агентная архитектура + игровые механики
+**Следующий этап:** Sprint 3 — Долгосрочная память с cost-оптимизацией
 
 **Технологический стек (финальный):**
 - **Backend:** FastAPI (async, type hints для AI agent)
 - **Bot Framework:** Aiogram 3.x (FSM, middleware)
-- **Agent Orchestration:** LangGraph (production-ready, циклические workflow)
+- **Agent Orchestration:** Simple Sequential (MVP) → LangGraph/CrewAI (v2.0)
 - **Database:** Supabase PostgreSQL + pgvector (векторная память)
 - **LLM Provider:** OpenRouter (гибкость в выборе моделей)
 - **Package Manager:** UV (быстрая установка зависимостей)
+
+**Cost per turn:** ~₽0.22 (включая memory overhead)
 
 ---
 
@@ -632,48 +637,61 @@ AI code agent возьмет эту спецификацию и сгенерир
 
 ---
 
-### Sprint 3: Memory System + CrewAI Integration (2-3 недели)
+### Sprint 3: Memory System (Cost-Optimized) (2-3 недели)
 
-**Цель:** Долгосрочная память работает + переход на CrewAI для оркестрации
+> **UPDATED:** См. `docs/SPRINT3_UPDATED.md` для полной спецификации с решениями критических проблем
+
+**Цель:** Долгосрочная память работает с минимальным overhead (<5% от base cost)
+
+**Key Decisions:**
+- ✅ **LLM-based importance scoring** через Synthesizer (zero overhead)
+- ✅ **Temporal ranking** без session summaries (бесшовная игра)
+- ✅ **Confidence-based knowledge scoping** (метагейминг prevention)
+- ❌ **No CrewAI для MVP** (simple orchestrator дешевле и проще)
 
 **Deliverables:**
 - ✅ Supabase PostgreSQL + pgvector setup
-- ✅ Memory Manager agent
-- ✅ Episodic memory с chunking
-- ✅ RAG pipeline для retrieval
+- ✅ Layered memory retrieval (recent + important + semantic)
+- ✅ Smart memory storage с LLM-based filtering
 - ✅ World State agent для глобального состояния
-- ✅ **CrewAI integration** для production-grade orchestration
+- ✅ Knowledge scoping через confidence scores
+- ✅ Cost per turn <$0.0025 (₽0.22)
 
 **Структура Sprint 3:**
 
 **Week 1: Database Setup**
 - [ ] Setup Supabase project
-- [ ] Database schema migration (characters, sessions, episodic_memories, semantic_memories)
+- [ ] Database schema migration с `player_knowledge_confidence` column
+- [ ] ❌ Remove `summary` from game_sessions (избыточно)
 - [ ] Create `app/db/supabase.py` — Supabase client
-- [ ] Create `app/db/models.py` — Pydantic models для DB entities
-- [ ] Install CrewAI: `uv add crewai crewai-tools`
+- [ ] Create `app/db/models.py` — Updated Pydantic models
 
-**Week 2: Memory System + CrewAI Setup**
-- [ ] Реализовать `app/memory/embeddings.py` — OpenAI embeddings API wrapper
-- [ ] Реализовать `app/memory/episodic.py` — Episodic memory CRUD
-- [ ] Реализовать `app/memory/retrieval.py` — RAG pipeline (vector search + reranking)
+**Week 2: Memory System**
+- [ ] Реализовать `app/memory/embeddings.py` — Embeddings через OpenRouter
+- [ ] Реализовать `app/memory/retrieval.py` — Layered retrieval system
+- [ ] Реализовать `app/memory/smart_storage.py` — Smart memory creation
+- [ ] Update `app/agents/response_synthesizer.py` — Add metadata extraction
 - [ ] Реализовать Memory Manager agent
-- [ ] **Convert agents to CrewAI format** (add @agent and @task decorators)
 
 **Week 3: Integration & World State**
 - [ ] Реализовать World State agent
-- [ ] **Create CrewAI Crew** configuration в `app/agents/crew.py`
-- [ ] Migrate orchestrator to use CrewAI Crew
-- [ ] Chunking system для conversation history
-- [ ] Session summary generation (LLM-based)
+- [ ] Update `app/bot/handlers.py` — Use layered retrieval + smart storage
 - [ ] Testing: multi-session continuity
+- [ ] Testing: knowledge scoping (GM secrets не спойлерят)
+- [ ] Cost analysis: verify <$0.0025 overhead
 
 **Success Criteria:**
 - Бот помнит события из прошлых сессий
 - Memory retrieval latency <500ms
 - RAG accuracy >85%
-- CrewAI оркестрация работает smoothly
-- Agents execute в правильной последовательности
+- Cost overhead <5% от base turn cost
+- GM secrets (confidence=0.0) не попадают в player responses
+- Temporal ranking корректно приоритизирует recent + important events
+
+**Key Files:**
+- `docs/SPRINT3_UPDATED.md` - Полная спецификация
+- `app/memory/retrieval.py` - Layered retrieval logic
+- `app/memory/smart_storage.py` - LLM-based filtering
 
 ---
 
@@ -682,21 +700,23 @@ AI code agent возьмет эту спецификацию и сгенерир
 **Цель:** Production-ready MVP
 
 **Deliverables:**
-- ✅ Production-grade CrewAI configuration (оптимизация workflow)
 - ✅ Redis для FSM storage (замена MemoryStorage)
 - ✅ Webhooks вместо polling
 - ✅ Error handling & monitoring
 - ✅ Cost tracking & optimization
 - ✅ Deploy на Railway/Render
+- ✅ NPC relationship tracking (structured data)
+- ✅ Quest system foundations
 
 **Структура Sprint 4:**
 
 **Week 1: Production Infrastructure**
 - [ ] Setup Redis для FSM persistence
 - [ ] Migrate от polling к webhooks (FastAPI endpoint)
-- [ ] Optimize CrewAI workflow (parallel execution где возможно)
 - [ ] Structured logging (JSON logs)
 - [ ] Cost tracking middleware
+- [ ] **Implement NPC relationship system** (в world_state)
+- [ ] **Implement quest tracking** (flexible outcomes)
 
 **Week 2: Deploy & Monitoring**
 - [ ] Dockerfile для deployment
@@ -708,11 +728,15 @@ AI code agent возьмет эту спецификацию и сгенерир
 **Success Criteria:**
 - Бот работает в production 24/7
 - Latency <3 секунды на ход
-- Cost <$0.02 за ход
+- Cost <$0.025 за ход (₽2.50)
 - Uptime >99%
+- NPC relationships tracked correctly
+- Quests have flexible outcomes (не линейность)
 
-**Optional (если нужна более сложная оркестрация):**
-- [ ] Migrate от CrewAI к LangGraph для advanced workflows
+**Optional (v2.0):**
+- [ ] Migrate к CrewAI/LangGraph для advanced workflows
+- [ ] Shared world support
+- [ ] Advanced memory consolidation (для 100+ session campaigns)
 
 ---
 

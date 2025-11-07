@@ -96,7 +96,7 @@ OPENROUTER_API_KEY=your_openrouter_api_key_here
 SITE_URL=http://localhost:8000
 
 # LLM Model
-LLM_MODEL=x-ai/grok-beta-fast
+LLM_MODEL=x-ai/grok-4-fast
 ```
 
 **3.2 Создайте файл `.env` в корне проекта (скопируйте из `.env.example` и заполните реальными значениями):**
@@ -124,7 +124,7 @@ class Settings(BaseSettings):
     telegram_bot_token: str = Field(..., alias="TELEGRAM_BOT_TOKEN")
     openrouter_api_key: str = Field(..., alias="OPENROUTER_API_KEY")
     site_url: str = Field(default="http://localhost:8000", alias="SITE_URL")
-    llm_model: str = Field(default="x-ai/grok-beta-fast", alias="LLM_MODEL")
+    llm_model: str = Field(default="x-ai/grok-4-fast", alias="LLM_MODEL")
     
     class Config:
         env_file = ".env"
@@ -217,7 +217,7 @@ llm_client = LLMClient()
 
 **Технические детали для AI agent:**
 - OpenRouter использует OpenAI-совместимый API endpoint `https://openrouter.ai/api/v1`
-- Модель Grok-4-fast указывается как `x-ai/grok-beta-fast`
+- Модель Grok-4-fast указывается как `x-ai/grok-4-fast`
 - `HTTP-Referer` header опциональный, но рекомендуется для отслеживания на OpenRouter
 
 ### Шаг 6: Код — FSM States
