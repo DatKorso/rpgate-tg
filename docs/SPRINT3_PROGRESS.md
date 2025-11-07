@@ -62,9 +62,23 @@
 
 ## 🔄 Next Steps (To Do)
 
-### Immediate Actions Required
+### Week 2 Memory System & Agents - IN PROGRESS ✅
 
-#### 1. Manual Setup (User Action Required)
+**Completed:**
+- ✅ **Task 2.1**: Embeddings Service (qwen/qwen3-embedding-4b, 2560 dimensions)
+- ✅ **Task 2.2**: Episodic Memory Manager (create, search, retrieve)
+- ✅ **Task 2.3**: Memory Manager Agent (RAG retrieval, metadata extraction, 15 tests passed)
+- ✅ **Task 2.4**: World State Agent (state management, DB persistence, 15 tests passed)
+
+**Next:**
+- [ ] **Task 3.2-3.3**: Integration с Bot Handlers
+  - [ ] Character persistence (DB CRUD)
+  - [ ] Session management (start/end with summaries)
+  - [ ] Update handlers to use Memory Manager
+  - [ ] Update orchestrator to include World State Agent
+  - [ ] Save memories after each turn
+
+### Week 2 Remaining Tasks (Optional)
 
 **User needs to**:
 1. **Create Supabase project** (see `docs/SPRINT3_SETUP_GUIDE.md`)

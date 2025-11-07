@@ -1,5 +1,6 @@
 """Configuration module for prompts, models and app settings."""
 
+from typing import Optional
 from pydantic_settings import BaseSettings
 from pydantic import Field
 
@@ -7,14 +8,33 @@ from pydantic import Field
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
     
+    # Required settings
     telegram_bot_token: str = Field(..., alias="TELEGRAM_BOT_TOKEN")
     openrouter_api_key: str = Field(..., alias="OPENROUTER_API_KEY")
+    
+    # LLM settings
     site_url: str = Field(default="http://localhost:8000", alias="SITE_URL")
     llm_model: str = Field(default="x-ai/grok-beta-fast", alias="LLM_MODEL")
+    
+    # Supabase settings (Sprint 3+) - Optional для backwards compatibility
+    supabase_url: Optional[str] = Field(default=None, alias="SUPABASE_URL")
+    supabase_key: Optional[str] = Field(default=None, alias="SUPABASE_KEY")
+    supabase_db_url: Optional[str] = Field(default=None, alias="SUPABASE_DB_URL")
+    
+    # Embeddings settings (Sprint 3+)
+    embedding_model: str = Field(
+        default="qwen/qwen3-embedding-4b", 
+        alias="EMBEDDING_MODEL"
+    )
+    embedding_dimension: int = Field(
+        default=2560, 
+        alias="EMBEDDING_DIMENSION"
+    )
     
     class Config:
         env_file = ".env"
         case_sensitive = False
+        extra = "ignore"  # Ignore extra fields в .env
 
 
 # Singleton instance with validation

@@ -80,18 +80,22 @@
   - [✅] Test vector search с sample data
   - [✅] Update for halfvec format
 
-- [ ] **Task 2.3:** Memory Manager Agent
-  - [ ] Создать `app/agents/memory_manager.py`
-  - [ ] Implement `execute()` - RAG retrieval
-  - [ ] Implement `_build_memory_summary()`
-  - [ ] Unit test для agent
+- [✅] **Task 2.3:** Memory Manager Agent
+  - [✅] Создать `app/agents/memory_manager.py`
+  - [✅] Implement `execute()` - RAG retrieval
+  - [✅] Implement `_build_memory_summary()`
+  - [✅] Implement `extract_memory_metadata()` - rule-based metadata extraction
+  - [✅] Implement `_extract_entities()` - simple entity extraction
+  - [✅] Unit test для agent (15 tests passed)
 
-- [ ] **Task 2.4:** World State Agent
-  - [ ] Создать `app/agents/world_state.py`
-  - [ ] Implement `execute()` - update game state
-  - [ ] Implement `_save_world_state()` - save to DB
-  - [ ] Implement `load_world_state()` - load from DB
-  - [ ] Test state persistence
+- [✅] **Task 2.4:** World State Agent
+  - [✅] Создать `app/agents/world_state.py`
+  - [✅] Implement `execute()` - update game state
+  - [✅] Implement `_apply_narrative_updates()` - apply narrative changes
+  - [✅] Implement `_handle_combat_update()` - combat-specific logic
+  - [✅] Implement `_save_world_state()` - save to DB
+  - [✅] Implement `load_world_state()` - load from DB
+  - [✅] Test state persistence (15 tests passed)
 
 ---
 
