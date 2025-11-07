@@ -72,6 +72,8 @@ class WorldStateAgent(BaseAgent):
             updated_state = dict(game_state)
             state_changes: List[str] = []
             
+            self.logger.debug(f"Initial state: in_combat={updated_state.get('in_combat')}, enemies={updated_state.get('enemies', [])}")
+            
             # Apply narrative updates first (priority)
             if narrative_updates:
                 self._apply_narrative_updates(
@@ -79,6 +81,7 @@ class WorldStateAgent(BaseAgent):
                     narrative_updates, 
                     state_changes
                 )
+                self.logger.debug(f"After narrative updates: in_combat={updated_state.get('in_combat')}, enemies={updated_state.get('enemies', [])}")
             
             # Apply mechanics-based updates
             if action_type == "attack":
@@ -87,6 +90,7 @@ class WorldStateAgent(BaseAgent):
                     mechanics_result,
                     state_changes
                 )
+                self.logger.debug(f"After combat updates: in_combat={updated_state.get('in_combat')}, enemies={updated_state.get('enemies', [])}")
             
             # Save to database
             persisted = await self._save_world_state(character_id, updated_state)
@@ -169,35 +173,15 @@ class WorldStateAgent(BaseAgent):
         """
         Handle combat-specific state updates.
         
-        Обрабатывает:
-        - Defeated enemies (based on damage)
-        - Combat end (no more enemies)
+        NOTE: Combat state (in_combat, enemies, combat_ended) управляется 
+        ТОЛЬКО Narrative Director через game_state_updates.
+        
+        Этот метод оставлен для будущих механик (например, tracking enemy HP в БД).
+        В текущей версии НЕ модифицирует combat state напрямую.
         """
-        if not mechanics_result.get("hit"):
-            # Attack missed, no state changes
-            return
-        
-        damage = mechanics_result.get("total_damage", 0)
-        
-        # Simple enemy HP check (можно расширить для разных типов врагов)
-        # For MVP: если урон >= 7, enemy defeated
-        enemy_hp_threshold = 7
-        
-        if damage >= enemy_hp_threshold:
-            enemies = state.get("enemies", [])
-            
-            if enemies:
-                # Remove first enemy (assumed to be target)
-                defeated_enemy = enemies[0]
-                enemies = enemies[1:]
-                state["enemies"] = enemies
-                
-                changes.append(f"⚔️ {defeated_enemy.capitalize()} повержен!")
-                
-                # Check if combat ended
-                if not enemies:
-                    state["in_combat"] = False
-                    changes.append("✅ Все враги повержены, бой завершен")
+        # Логика убийства врагов ОТКЛЮЧЕНА - это делает Narrative Director
+        # В будущем здесь может быть отслеживание HP врагов в БД
+        pass
     
     async def _save_world_state(
         self,
@@ -271,7 +255,12 @@ class WorldStateAgent(BaseAgent):
                 )
                 
                 if row and row["state_data"]:
-                    return dict(row["state_data"])
+                    # asyncpg may return JSONB as string, parse it
+                    state_data = row["state_data"]
+                    if isinstance(state_data, str):
+                        import json
+                        state_data = json.loads(state_data)
+                    return dict(state_data)
                 else:
                     # Default state for new characters
                     return self._default_game_state()

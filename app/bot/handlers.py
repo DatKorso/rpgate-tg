@@ -12,6 +12,9 @@ from app.bot.states import ConversationState
 from app.agents.orchestrator import AgentOrchestrator
 from app.game.character import CharacterSheet
 from app.config.prompts import UIPrompts, CombatPrompts
+from app.db.characters import get_character_by_telegram_id, create_character, update_character
+from app.db.sessions import get_or_create_session, update_session_stats
+from app.agents.world_state import world_state_agent
 
 
 # Logger
@@ -94,8 +97,11 @@ async def callback_show_help(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("class_"))
 async def callback_select_class(callback: CallbackQuery, state: FSMContext):
-    """Handle class selection."""
+    """Handle class selection and create character in DB."""
     await callback.answer()
+    
+    if not callback.data:
+        return
     
     class_name = callback.data.replace("class_", "")
     
@@ -140,11 +146,12 @@ async def callback_select_class(callback: CallbackQuery, state: FSMContext):
     }
     
     stats = class_stats.get(class_name, class_stats["warrior"])
-    user_name = callback.from_user.first_name or "Искатель приключений"
+    telegram_user_id = callback.from_user.id if callback.from_user else 0
+    user_name = callback.from_user.first_name if callback.from_user else "Искатель приключений"
     
     # Create character
     character = CharacterSheet(
-        telegram_user_id=callback.from_user.id,
+        telegram_user_id=telegram_user_id,
         name=user_name,
         strength=stats.get("strength", 10),
         dexterity=stats.get("dexterity", 10),
@@ -158,7 +165,17 @@ async def callback_select_class(callback: CallbackQuery, state: FSMContext):
         location="ancient_ruins"
     )
     
-    # Initialize game state
+    # Save character to database
+    success = await create_character(character)
+    
+    if not success:
+        logger.warning(f"Character already exists for user {telegram_user_id}, loading existing")
+        # Load existing character
+        existing_character = await get_character_by_telegram_id(telegram_user_id)
+        if existing_character:
+            character = existing_character
+    
+    # Initialize game state (will be saved to DB on first action)
     game_state = {
         "in_combat": False,
         "enemies": [],
@@ -166,7 +183,7 @@ async def callback_select_class(callback: CallbackQuery, state: FSMContext):
         "combat_ended": False
     }
     
-    # Save to state
+    # Save to FSM state (backward compatibility)
     await state.update_data(
         character=character.model_dump_for_storage(),
         game_state=game_state,
@@ -198,7 +215,8 @@ async def callback_select_class(callback: CallbackQuery, state: FSMContext):
         intro_scene=intro_scene
     )
     
-    await callback.message.edit_text(message_text, parse_mode="Markdown")
+    if callback.message:
+        await callback.message.edit_text(message_text, parse_mode="Markdown")
 
 
 @router.message(Command("help"))
@@ -222,28 +240,37 @@ async def cmd_reset(message: Message, state: FSMContext):
 
 @router.message(ConversationState.in_conversation, F.text)
 async def handle_conversation(message: Message, state: FSMContext):
-    """Main handler with agent system and game state tracking."""
+    """Main handler with database integration (Sprint 3)."""
     user_message = message.text
     
-    # Get data from state
-    data = await state.get_data()
-    character_data = data.get("character")
-    
-    if not character_data:
-        await message.answer(UIPrompts.ERROR_NO_CHARACTER)
+    if not user_message:
+        await message.answer(UIPrompts.ERROR_GENERIC)
         return
     
-    character = CharacterSheet(**character_data)
+    telegram_user_id = message.from_user.id if message.from_user else 0
     
-    # Get game state (initialize if doesn't exist)
-    game_state = data.get("game_state", {
-        "in_combat": False,
-        "enemies": [],
-        "location": character.location,
-        "combat_ended": False
-    })
+    # Load character from database instead of FSM
+    character = await get_character_by_telegram_id(telegram_user_id)
     
-    # Get history
+    if not character:
+        # Fallback: check FSM for in-memory character (backward compatibility)
+        data = await state.get_data()
+        character_data = data.get("character")
+        
+        if character_data:
+            character = CharacterSheet(**character_data)
+        else:
+            await message.answer(UIPrompts.ERROR_NO_CHARACTER)
+            return
+    
+    # Get or create session
+    session_id = await get_or_create_session(character.id)
+    
+    # Load game state from World State Agent
+    game_state = await world_state_agent.load_world_state(character.id)
+    
+    # Get history from FSM (will be migrated to DB in future)
+    data = await state.get_data()
     history = data.get("history", [])
     recent_messages = [msg["content"] for msg in history[-5:] if msg["role"] == "assistant"]
     
@@ -251,16 +278,17 @@ async def handle_conversation(message: Message, state: FSMContext):
     typing_task = asyncio.create_task(_send_typing_indicator(message))
     
     try:
-        # Process через orchestrator with game_state
+        # Process через orchestrator with DB integration
         final_message, updated_character, updated_game_state = await orchestrator.process_action(
             user_action=user_message,
             character=character,
             game_state=game_state,
+            character_id=character.id,  # For memory retrieval
+            session_id=session_id,  # For memory context
             recent_history=recent_messages
         )
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).error(f"Error processing action: {e}", exc_info=True)
+        logger.error(f"Error processing action: {e}", exc_info=True)
         await message.answer(UIPrompts.ERROR_GENERIC)
         return
     finally:
@@ -283,13 +311,25 @@ async def handle_conversation(message: Message, state: FSMContext):
         final_message = f"{final_message}\n\n{CombatPrompts.PLAYER_DEATH}"
         await state.clear()  # Reset game
     
-    # Save updated data
-    await state.update_data(
-        character=updated_character.model_dump_for_storage(),
-        game_state=updated_game_state
+    # Save updated character to database
+    await update_character(updated_character)
+    
+    # Update session stats
+    damage_dealt = 0
+    damage_taken = 0
+    
+    # Extract damage from enemy attacks
+    enemy_attacks = updated_game_state.get("enemy_attacks", [])
+    damage_taken = sum(attack.get("damage", 0) for attack in enemy_attacks)
+    
+    await update_session_stats(
+        session_id=session_id,
+        turns_increment=1,
+        damage_dealt_increment=damage_dealt,
+        damage_taken_increment=damage_taken
     )
     
-    # Update history
+    # Update history in FSM (temporary until we migrate to DB)
     history.append({"role": "user", "content": user_message})
     history.append({"role": "assistant", "content": final_message})
     
@@ -302,7 +342,30 @@ async def handle_conversation(message: Message, state: FSMContext):
     try:
         await message.answer(final_message, parse_mode="Markdown")
     except Exception as e:
-        logger.warning(f"Markdown parsing failed: {e}. Sending as plain text.")
+        error_msg = str(e)
+        logger.warning(
+            f"Markdown parsing failed: {error_msg}. "
+            f"Message length: {len(final_message)} chars. "
+            f"Sending as plain text."
+        )
+        
+        # Log problematic section if byte offset is mentioned
+        if "byte offset" in error_msg:
+            try:
+                import re
+                match = re.search(r'byte offset (\d+)', error_msg)
+                if match:
+                    offset = int(match.group(1))
+                    # Log context around the problematic byte
+                    start = max(0, offset - 50)
+                    end = min(len(final_message), offset + 50)
+                    context = final_message[start:end]
+                    logger.warning(f"Problematic section (bytes {start}-{end}): {repr(context)}")
+            except Exception:
+                pass
+        
+        # Send without Markdown parsing
+        await message.answer(final_message)
         # Fallback: send as plain text without formatting
         await message.answer(final_message, parse_mode=None)
 

@@ -148,7 +148,12 @@ async def test_apply_narrative_updates_enemy_attacks():
 
 @pytest.mark.asyncio
 async def test_handle_combat_update_enemy_defeated():
-    """Test combat update when enemy is defeated."""
+    """
+    Test combat update does NOT modify enemy list.
+    
+    NOTE: After bugfix, _handle_combat_update() is disabled.
+    Enemy management is ONLY done by Narrative Director.
+    """
     agent = WorldStateAgent()
     
     state = {
@@ -159,26 +164,28 @@ async def test_handle_combat_update_enemy_defeated():
     
     mechanics_result = {
         "hit": True,
-        "total_damage": 10  # >= 7, enemy defeated
+        "total_damage": 10  # High damage
     }
     
     agent._handle_combat_update(state, mechanics_result, changes)
     
-    # First enemy should be removed
-    assert len(state["enemies"]) == 1
-    assert "гоблин" not in state["enemies"]
+    # Enemies list should NOT change (handled by Narrative Director)
+    assert len(state["enemies"]) == 2
+    assert "гоблин" in state["enemies"]
     assert "волк" in state["enemies"]
     
-    # Combat should still be active (more enemies)
+    # Combat state should NOT change (handled by Narrative Director)
     assert state["in_combat"] is True
-    
-    # Should have defeat message
-    assert any("повержен" in change for change in changes)
 
 
 @pytest.mark.asyncio
 async def test_handle_combat_update_all_enemies_defeated():
-    """Test combat update when all enemies are defeated."""
+    """
+    Test combat update does NOT end combat automatically.
+    
+    NOTE: After bugfix, _handle_combat_update() is disabled.
+    Combat ending is ONLY done by Narrative Director.
+    """
     agent = WorldStateAgent()
     
     state = {
@@ -194,14 +201,14 @@ async def test_handle_combat_update_all_enemies_defeated():
     
     agent._handle_combat_update(state, mechanics_result, changes)
     
-    # All enemies defeated
-    assert len(state["enemies"]) == 0
+    # Enemy list should NOT change (handled by Narrative Director)
+    assert len(state["enemies"]) == 1
     
-    # Combat should end
-    assert state["in_combat"] is False
+    # Combat should NOT end automatically (handled by Narrative Director)
+    assert state["in_combat"] is True
     
-    # Should have combat end message
-    assert any("бой завершен" in change.lower() for change in changes)
+    # No automatic messages (Narrative Director handles this)
+    assert len(changes) == 0
 
 
 @pytest.mark.asyncio

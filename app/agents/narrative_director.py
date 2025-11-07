@@ -31,6 +31,16 @@ class NarrativeDirectorAgent(BaseAgent):
         """
         Generate narrative with combat state detection.
         
+        CRITICAL: This agent is responsible for ALL combat state management:
+        - Starting combat (in_combat: true)
+        - Tracking enemies (adding/removing from enemies list)
+        - Ending combat (combat_ended: true, enemies: [])
+        - Enemy attacks (counter-attacks when player misses/doesn't attack)
+        - Determining when enemies are defeated (based on damage and narrative)
+        
+        World State Agent does NOT modify combat state - it only persists what
+        Narrative Director decides.
+        
         Args:
             context: {
                 "user_action": str,

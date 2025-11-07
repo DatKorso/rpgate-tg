@@ -65,6 +65,7 @@ class ResponseSynthesizerAgent(BaseAgent):
         # 2. Narrative description
         # Sanitize narrative to fix common Markdown issues
         narrative_sanitized = self._sanitize_markdown(narrative)
+        logger.debug(f"Narrative sanitized length: {len(narrative_sanitized)}, original: {len(narrative)}")
         parts.append(narrative_sanitized)
         
         # 3. Character status
@@ -89,45 +90,73 @@ class ResponseSynthesizerAgent(BaseAgent):
         - Unclosed bold/italic markers
         - Unpaired square brackets
         - JSON remnants
+        - Special characters in wrong positions
         """
+        if not text:
+            return ""
+        
         # 1. Remove any JSON-like structures that might remain
         text = re.sub(r'\{[^{}]*"in_combat"[^{}]*\}', '', text, flags=re.IGNORECASE)
         text = re.sub(r'COMBAT_STATE:.*$', '', text, flags=re.IGNORECASE | re.MULTILINE)
+        text = re.sub(r'\{[^{}]*"enemies"[^{}]*\}', '', text, flags=re.IGNORECASE)
         
-        # 2. Fix unbalanced ** (bold) - count and remove last if odd
-        bold_count = text.count("**")
-        if bold_count % 2 != 0:
-            # Remove last occurrence of **
-            last_idx = text.rfind("**")
-            if last_idx != -1:
-                text = text[:last_idx] + text[last_idx+2:]
+        # 2. Fix unbalanced ** (bold) - must be in pairs
+        # Count ** as single unit (not individual asterisks)
+        parts = text.split("**")
+        if len(parts) % 2 == 0:
+            # Even number of parts = odd number of ** = unbalanced
+            # Remove last ** by joining without it
+            text = "**".join(parts[:-1]) + parts[-1]
         
-        # 3. Fix unbalanced _ (underline) - escape all if odd
-        underscore_count = text.count("_")
-        if underscore_count % 2 != 0:
+        # 3. Fix unbalanced __ (underline)
+        parts = text.split("__")
+        if len(parts) % 2 == 0:
+            text = "__".join(parts[:-1]) + parts[-1]
+        
+        # 4. Fix unbalanced single * (italic) - after handling **
+        # Replace ** temporarily to count single asterisks
+        temp_text = text.replace("**", "")
+        if temp_text.count("*") % 2 != 0:
+            # Escape all single asterisks (not part of **)
+            text = text.replace("**", "⚡BOLD⚡")
+            text = text.replace("*", r"\*")
+            text = text.replace("⚡BOLD⚡", "**")
+        
+        # 5. Fix unbalanced single _ (underline) - after handling __
+        temp_text = text.replace("__", "")
+        if temp_text.count("_") % 2 != 0:
+            text = text.replace("__", "⚡UNDERLINE⚡")
             text = text.replace("_", r"\_")
+            text = text.replace("⚡UNDERLINE⚡", "__")
         
-        # 4. Fix unbalanced [ ] (links)
+        # 6. Fix unbalanced [ ] (links/references)
         open_count = text.count("[")
         close_count = text.count("]")
         if open_count != close_count:
-            # Escape all brackets
+            # Escape all brackets to be safe
             text = text.replace("[", r"\[").replace("]", r"\]")
         
-        # 5. Fix unbalanced backticks
+        # 7. Fix unbalanced backticks `
         if text.count("`") % 2 != 0:
-            text = text.replace("`", r"\`")
+            # Remove last backtick or escape all
+            last_idx = text.rfind("`")
+            if last_idx != -1:
+                text = text[:last_idx] + text[last_idx+1:]
         
-        # 6. Fix unbalanced single * (italic) - more complex
-        # This is tricky because ** contains *, so we need to be careful
-        # Simple approach: if after removing ** we have odd *, escape all single *
-        text_no_bold = text.replace("**", "")
-        if text_no_bold.count("*") % 2 != 0:
-            # Escape standalone asterisks (not part of **)
-            # Replace ** with placeholder, escape *, restore
-            text = text.replace("**", "⚡⚡")
-            text = text.replace("*", r"\*")
-            text = text.replace("⚡⚡", "**")
+        # 8. Escape special Telegram Markdown characters at line start
+        # Telegram MarkdownV2 has issues with certain characters
+        lines = text.split("\n")
+        sanitized_lines = []
+        for line in lines:
+            line = line.strip()
+            # Don't escape if line starts with emoji (common pattern)
+            if line and not line[0].isalpha() and line[0] not in "🎲💥💀❤️🩹📍⚔️✅❌💔":
+                # Check for problematic characters
+                if line[0] in "-+.!#":
+                    line = "\\" + line
+            sanitized_lines.append(line)
+        
+        text = "\n".join(sanitized_lines)
         
         return text.strip()
     
