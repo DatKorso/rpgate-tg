@@ -1,8 +1,7 @@
 """Configuration module for prompts, models and app settings."""
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 from pydantic import Field
-from typing import Optional
 
 
 class Settings(BaseSettings):
@@ -11,23 +10,11 @@ class Settings(BaseSettings):
     telegram_bot_token: str = Field(..., alias="TELEGRAM_BOT_TOKEN")
     openrouter_api_key: str = Field(..., alias="OPENROUTER_API_KEY")
     site_url: str = Field(default="http://localhost:8000", alias="SITE_URL")
-    llm_model: str = Field(default="x-ai/grok-4-fast", alias="LLM_MODEL")
+    llm_model: str = Field(default="x-ai/grok-beta-fast", alias="LLM_MODEL")
     
-    # Supabase Configuration (Sprint 3)
-    supabase_url: Optional[str] = Field(default=None, alias="SUPABASE_URL")
-    supabase_key: Optional[str] = Field(default=None, alias="SUPABASE_KEY")
-    supabase_db_url: Optional[str] = Field(default=None, alias="SUPABASE_DB_URL")
-    
-    # Embeddings Configuration (Sprint 3 - uses OpenRouter)
-    # Uses openrouter_api_key for embeddings, no separate API key needed
-    embedding_model: str = Field(default="qwen/qwen3-embedding-8b", alias="EMBEDDING_MODEL")
-    embedding_dimension: int = Field(default=1536, alias="EMBEDDING_DIMENSION")
-    
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        case_sensitive=False,
-        extra="ignore"
-    )
+    class Config:
+        env_file = ".env"
+        case_sensitive = False
 
 
 # Singleton instance with validation
