@@ -1,32 +1,99 @@
-# Product Overview
+---
+inclusion: always
+---
 
-## RPGate Telegram Bot
+# Product Context
 
-AI-powered Game Master Telegram bot that conducts fantasy RPG adventures with game mechanics.
+## RPGate - AI Game Master Bot
 
-### Core Concept
-An intelligent bot that acts as a Game Master, running D&D-style RPG sessions through Telegram. Players interact in natural language, and the bot handles narrative storytelling, dice rolling, combat resolution, and character management.
+AI-powered Telegram bot that runs D&D-style RPG sessions. Players interact in natural language while the bot handles storytelling, dice mechanics, combat, and character management.
 
-### Current Status
-- **Sprint 1:** ✅ Complete - Basic bot with LLM integration
-- **Sprint 2:** ✅ Complete - Multi-agent system with game mechanics
-- **Sprint 3:** 🔄 In Progress - Memory system with RAG and database persistence
+## Development Status
 
-### Key Features
-- Multi-agent AI system (Rules Arbiter, Narrative Director, Response Synthesizer)
-- D&D-inspired game mechanics (d20 system, character sheets, combat)
-- Character creation with classes (Warrior, Ranger, Mage, Rogue)
-- LLM-based intent detection for automatic action resolution
-- Game state management (combat tracking, HP, inventory)
-- Formatted responses with Markdown and emojis
+**Sprint 3 (Current):** Memory system with RAG and database persistence
+- Sprint 1: ✅ Basic bot with LLM integration
+- Sprint 2: ✅ Multi-agent system with game mechanics
 
-### Architecture
-- **Multi-agent system:** Specialized agents handle different aspects (rules, narrative, synthesis)
-- **FSM state management:** Aiogram 3.x for conversation states
-- **LLM provider:** OpenRouter for flexible model access (primarily Grok)
-- **Future:** PostgreSQL + pgvector for long-term memory (Sprint 3)
+## Core Product Rules
 
-### Localization
-- **UI/UX:** Russian (all bot messages and player-facing prompts)
-- **Code:** English (code, documentation, comments)
-- **Prompts:** Centralized in `app/config/prompts.py` (Russian)
+### Localization Requirements
+- **All user-facing text MUST be in Russian** - bot messages, prompts, UI text
+- **Code, comments, and docs MUST be in English**
+- **Prompts are centralized** in `app/config/prompts.py` - never hardcode Russian text elsewhere
+- When adding new features, always add Russian text to `prompts.py` first
+
+### Game Mechanics
+- **D&D-inspired d20 system** - use existing `DiceRoller` and `RulesEngine` classes
+- **Character classes:** Warrior, Ranger, Mage, Rogue (defined in `character.py`)
+- **Combat resolution:** Attack rolls vs AC, damage rolls, HP tracking
+- **Skill checks:** d20 + modifiers vs DC
+- Never invent new mechanics - extend existing systems in `app/game/`
+
+### Multi-Agent Architecture
+**Agent execution order is fixed:** Rules Arbiter → Narrative Director → Response Synthesizer
+
+- **Rules Arbiter** - Detects player intent, resolves mechanics, updates game state
+- **Narrative Director** - Generates story descriptions based on rules output
+- **Response Synthesizer** - Formats final message with Markdown and emojis
+- **Orchestrator** - Coordinates the workflow, never generates content itself
+
+When modifying agents:
+- Each agent has specific responsibilities - don't blur boundaries
+- Agents communicate via structured dicts (see `docs/API_CONTRACTS.md`)
+- All agents inherit from `BaseAgent` and implement `execute()`
+- Agent configs (model, temperature) are in `app/config/models.py`
+
+### State Management
+- **FSM states:** `idle`, `in_conversation`, `character_creation` (defined in `app/bot/states.py`)
+- **Game state** stored in FSM context as dict with keys: `in_combat`, `enemies`, `location`, `combat_ended`, `enemy_attacks`
+- **Character state** serialized as `CharacterSheet` object in FSM context
+- Never store state outside FSM context in MVP (database persistence is Sprint 3+)
+
+### LLM Integration
+- **Primary model:** `x-ai/grok-4-fast` (fast, cost-effective)
+- **Alternative:** `x-ai/grok-2` (higher quality narrative)
+- **Provider:** OpenRouter via `app/llm/client.py`
+- Model selection per agent configured in `app/config/models.py`
+- Always use structured output when possible (JSON mode)
+
+### Response Formatting
+- Use Telegram Markdown formatting (bold, italic, code blocks)
+- Include emojis for visual appeal (⚔️ 🎲 💀 🏹 etc.)
+- Combat results show: roll details, damage, HP changes
+- Keep responses concise but immersive
+
+## Feature Development Guidelines
+
+### Adding New Game Mechanics
+1. Implement logic in `app/game/rules.py` (RulesEngine)
+2. Update `app/game/character.py` if character data changes
+3. Modify Rules Arbiter to detect and resolve new actions
+4. Add tests in `tests/test_rules.py`
+
+### Adding New Agent Capabilities
+1. Update agent's `execute()` method in `app/agents/`
+2. Update API contract in `docs/API_CONTRACTS.md`
+3. Adjust downstream agents if output format changes
+4. Add agent-specific tests
+
+### Adding New Bot Commands
+1. Add handler in `app/bot/handlers.py`
+2. Add Russian text to `app/config/prompts.py`
+3. Register handler in `main.py` dispatcher
+4. Update FSM states if needed
+
+### Memory System (Sprint 3+)
+- **Episodic memory:** Conversation history with embeddings (pgvector)
+- **Semantic memory:** World lore and facts
+- **RAG pipeline:** Retrieve relevant memories before agent execution
+- Database schema in `app/db/migrations/`
+- Supabase client in `app/db/supabase.py`
+
+## Quality Standards
+
+- **Type hints required** - all functions and methods must have type annotations
+- **Async/await throughout** - all bot handlers and agent methods are async
+- **Pydantic for validation** - use Pydantic models for structured data
+- **Error handling** - graceful failures with Russian error messages to users
+- **Logging** - use Python logging module, not print statements
+- **Tests** - add tests for new game mechanics and agent logic

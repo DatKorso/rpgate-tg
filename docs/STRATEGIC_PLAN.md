@@ -126,7 +126,7 @@ CREATE TABLE episodic_memories (
     character_id UUID REFERENCES characters(id),
     session_id UUID REFERENCES game_sessions(id),
     content TEXT NOT NULL,
-    embedding VECTOR(1536),  -- OpenAI text-embedding-3-small
+    embedding VECTOR(1536),  -- OpenAI qwen/qwen3-embedding-4b
     importance_score INT DEFAULT 5,  -- 0-10
     entities TEXT[],  -- ["Элдар", "таверна", "карта"]
     created_at TIMESTAMP DEFAULT NOW()
@@ -175,7 +175,7 @@ def create_session_summary(session_messages: list[dict]) -> str:
 - **Latency:** Время на retrieval (target: <500ms)
 
 **Cost optimization:**
-- Embeddings: используем `text-embedding-3-small` ($0.02 за 1M токенов) вместо `text-embedding-3-large`
+- Embeddings: используем `qwen/qwen3-embedding-4b` ($0.02 за 1M токенов) вместо `text-embedding-3-large`
 - Кэшируем embeddings для повторяющихся запросов
 - Batch processing для embeddings (до 100 chunks за раз)
 

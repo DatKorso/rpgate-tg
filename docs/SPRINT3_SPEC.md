@@ -157,9 +157,7 @@ CREATE TABLE episodic_memories (
     
     -- Memory content
     content TEXT NOT NULL,
-    
-    -- Vector embedding для semantic search
-    embedding VECTOR(1536),  -- OpenAI text-embedding-3-small dimension
+    embedding HALFVEC(2560),
     
     -- Memory metadata
     memory_type VARCHAR(50) DEFAULT 'event',  -- 'event', 'dialogue', 'discovery', 'combat'
@@ -1663,7 +1661,7 @@ async def test_embeddings():
     
     embedding = await embeddings_service.embed_text(text)
     
-    assert len(embedding) == 1536  # text-embedding-3-small dimension
+    assert len(embedding) == 1536  # qwen/qwen3-embedding-4b dimension
     assert all(isinstance(x, float) for x in embedding)
 ```
 
@@ -1757,7 +1755,7 @@ SUPABASE_DB_URL=postgresql://postgres:password@db.your-project.supabase.co:5432/
 OPENAI_API_KEY=sk-...
 
 # Embeddings config
-EMBEDDING_MODEL=text-embedding-3-small
+EMBEDDING_MODEL=qwen/qwen3-embedding-4b
 EMBEDDING_DIMENSION=4096
 ```
 

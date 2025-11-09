@@ -3,104 +3,54 @@ applyTo: '**'
 ---
 # Tech Stack & Build System
 
-## Package Manager
-**UV** - Fast Python package manager (10-100x faster than pip)
+## Package Manager & Python
+- **UV** - Fast Python package manager (use `uv sync`, `uv add`, `uv run`)
+- **Python >= 3.11** required
+- Entry point: `uv run start` or `uv run python -m app.main`
 
-## Core Dependencies
+## Core Stack
+- **Aiogram 3.13.0** - Telegram bot with FSM (async/await throughout)
+- **OpenRouter + OpenAI client** - LLM API gateway
+  - Primary: `x-ai/grok-4-fast` (, cost-effective)
+  - Secondary: `mistralai/mistral-nemo` (smart, for creative tasks, higher in price)
+- **Pydantic Settings** - Type-safe config in `app/config.py`
+- **Supabase (PostgreSQL + pgvector)** - Database with vector search (Sprint 3+)
 
-### Bot Framework
-- **Aiogram 3.13.0** - Telegram bot framework with FSM support
-- Async/await throughout
-- FSM (Finite State Machine) for conversation state management
-- MemoryStorage for MVP (Redis planned for production)
-
-### Web Framework
-- **FastAPI** - Reserved for Sprint 4 webhooks (currently using polling)
-
-### LLM Integration
-- **OpenRouter** - LLM API gateway providing access to multiple models
-- **OpenAI client library** - For API calls
-- Primary model: `x-ai/grok-4-fast` (fast, cost-effective)
-- Alternative models: `x-ai/grok-2` (higher quality narrative)
-
-### Configuration
-- **Pydantic Settings** - Type-safe configuration management
-- **python-dotenv** - Environment variable loading
-- Configuration centralized in `app/config.py`
-
-### Future (Sprint 3+)
-- **PostgreSQL + pgvector** - Database with vector search (via Supabase)
-- **CrewAI** - Agent orchestration framework
-
-## Development Dependencies
-- **pytest** - Testing framework
-- **pytest-asyncio** - Async test support
-- **black** - Code formatting
-- **ruff** - Fast Python linter
+## Required Environment Variables
+```bash
+TELEGRAM_BOT_TOKEN    # From @BotFather
+OPENROUTER_API_KEY    # From openrouter.ai
+SUPABASE_URL          # Supabase project URL
+SUPABASE_KEY          # Supabase anon/service key
+LLM_MODEL             # Default: x-ai/grok-4-fast
+```
 
 ## Common Commands
-
-### Setup
 ```bash
-# Install dependencies
-uv sync
+# Setup
+uv sync                              # Install dependencies
+cp .env.example .env                 # Create config (then edit)
 
-# Create .env file
-cp .env.example .env
-# Then edit .env with your API keys
+# Run
+uv run start                         # Start bot
 
-# Check setup (optional but recommended)
-uv run python check_setup.py
+# Test
+uv run pytest                        # All tests
+uv run pytest tests/test_file.py     # Specific test
+uv run pytest -v                     # Verbose
+
+# Code quality
+uv run black app/ tests/             # Format
+uv run ruff check app/ tests/        # Lint
+
+# Dependencies
+uv add package-name                  # Add runtime dep
+uv add --dev package-name            # Add dev dep
 ```
 
-### Running
-```bash
-# Start the bot
-uv run python -m app.main
-
-# Or use the shortcut
-uv run start
-```
-
-### Testing
-```bash
-# Run all tests
-uv run pytest
-
-# Run specific test file
-uv run pytest tests/test_character.py
-
-# Run with verbose output
-uv run pytest -v
-```
-
-### Development
-```bash
-# Format code
-uv run black app/ tests/
-
-# Lint code
-uv run ruff check app/ tests/
-
-# Add new dependency
-uv add package-name
-
-# Add dev dependency
-uv add --dev package-name
-```
-
-## Environment Variables
-Required in `.env` file:
-- `TELEGRAM_BOT_TOKEN` - From @BotFather
-- `OPENROUTER_API_KEY` - From openrouter.ai
-- `SITE_URL` - Default: http://localhost:8000
-- `LLM_MODEL` - Default: x-ai/grok-4-fast
-
-## Python Version
-Requires Python >= 3.11 (specified in `pyproject.toml`)
-
-## Project Configuration
-All project metadata in `pyproject.toml`:
-- Package name: `rpgate-tg`
-- Build system: hatchling
-- Entry point: `app.main:main` (accessible via `uv run start`)
+## Key Conventions
+- All async (handlers, agents, DB calls)
+- Type hints required on all functions
+- Use `logging` module, never `print()`
+- Pydantic models for structured data validation
+- Configuration centralized in `app/config/` modules

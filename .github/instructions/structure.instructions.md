@@ -1,112 +1,86 @@
 ---
 applyTo: '**'
 ---
-# Project Structure & Organization
-
-## Directory Layout
-
-```
-rpgate-tg/
-├── app/                      # Main application code
-│   ├── agents/              # Multi-agent system
-│   ├── bot/                 # Telegram bot layer
-│   ├── config/              # Configuration & prompts
-│   ├── game/                # Game mechanics
-│   ├── llm/                 # LLM client
-│   ├── config.py            # Settings loader
-│   └── main.py              # Entry point
-├── tests/                   # Test suite
-├── docs/                    # Documentation
-├── .env                     # Environment variables (not in git)
-└── pyproject.toml          # Project configuration
-```
+# Code Structure & Conventions
 
 ## Module Organization
 
 ### `app/agents/` - Multi-Agent System
-Core agents that work together to create the GM experience:
-- `base.py` - BaseAgent abstract class for all agents
-- `orchestrator.py` - Coordinates agent workflow
-- `rules_arbiter.py` - Handles game mechanics and dice rolls
-- `narrative_director.py` - Generates story descriptions
-- `response_synthesizer.py` - Assembles final formatted responses
+Fixed execution order: **Rules Arbiter → Narrative Director → Response Synthesizer**
 
-**Agent workflow:** Rules Arbiter → Narrative Director → Response Synthesizer
+- All agents inherit from `BaseAgent` and implement `async def execute(context: dict[str, Any]) -> dict[str, Any]`
+- `orchestrator.py` coordinates workflow, never generates content
+- Agent configs (model, temperature) in `app/config/models.py`
+- Agent communication contracts in `docs/API_CONTRACTS.md`
 
-### `app/bot/` - Telegram Bot Layer
-Handles Telegram-specific logic:
-- `handlers.py` - Command and message handlers
-- `states.py` - FSM state definitions (idle, in_conversation, character_creation)
+### `app/bot/` - Telegram Layer
+- `handlers.py` - Command/message handlers (all async)
+- `states.py` - FSM states: `idle`, `in_conversation`, `character_creation`
 
-### `app/config/` - Configuration System
-Centralized configuration for maintainability:
-- `models.py` - Per-agent LLM model configurations (temperature, max_tokens)
-- `prompts.py` - All prompts in Russian (UI text, system prompts, templates)
+### `app/config/` - Configuration
+- `prompts.py` - **ALL Russian text goes here** (never hardcode Russian elsewhere)
+- `models.py` - Per-agent LLM configurations
 - `schemas.py` - Pydantic schemas for structured data
 
 ### `app/game/` - Game Mechanics
-D&D-inspired game systems:
-- `character.py` - CharacterSheet model with stats, HP, inventory
-- `dice.py` - DiceRoller for d4, d6, d8, d10, d12, d20, d100
-- `rules.py` - RulesEngine for attack resolution, skill checks
+- `character.py` - CharacterSheet (Warrior, Ranger, Mage, Rogue)
+- `dice.py` - DiceRoller (d4, d6, d8, d10, d12, d20, d100)
+- `rules.py` - RulesEngine (attack resolution, skill checks)
 
-### `app/llm/` - LLM Integration
-- `client.py` - OpenRouter API client wrapper
+### `app/db/` - Database (Sprint 3+)
+- `models.py` - Pydantic/SQLAlchemy models
+- `supabase.py` - Supabase client
+- `migrations/` - SQL migration files
 
-### `app/config.py` - Settings
-Loads environment variables using Pydantic Settings
+### `app/memory/` - Memory System (Sprint 3+)
+- `episodic.py` - Conversation history with embeddings
+- `embeddings.py` - Embedding generation
+- RAG pipeline for context retrieval
 
-### `app/main.py` - Entry Point
-Initializes bot, dispatcher, and starts polling
+## Code Style Rules
 
-## Code Conventions
+### Language
+- Code, comments, variable names: **English only**
+- User-facing text: **Russian only** (centralized in `app/config/prompts.py`)
+- When adding features, add Russian text to `prompts.py` first
 
-### Language Usage
-- **Code & comments:** English
-- **User-facing text:** Russian (in `app/config/prompts.py`)
-- **Documentation:** English (with Russian for PM-facing strategic docs)
-
-### Type Hints
-Use type hints throughout for better IDE support and AI code generation:
-```python
-def resolve_attack(attacker: CharacterSheet, target_ac: int) -> dict:
-    ...
-```
-
-### Async/Await
-All bot handlers and agent methods are async:
+### Type Hints (Required)
 ```python
 async def execute(self, context: dict[str, Any]) -> dict[str, Any]:
-    ...
+    character: CharacterSheet = context["character"]
+    return {"result": "success"}
 ```
 
-### Pydantic Models
-Use Pydantic for data validation and serialization:
-- CharacterSheet
-- ModelConfig
-- Settings
+### Async/Await (Required)
+All bot handlers and agent methods must be async
+
+### Imports
+Use absolute imports from `app`:
+```python
+from app.agents.base import BaseAgent
+from app.game.character import CharacterSheet
+from app.config.prompts import PROMPTS
+```
 
 ### Logging
-Use Python's logging module:
 ```python
 import logging
 logger = logging.getLogger(__name__)
-logger.info("Message")
+logger.info("Message")  # Never use print()
 ```
 
 ### Error Handling
-Graceful error handling with user-friendly messages in Russian
+Catch exceptions gracefully, return Russian error messages to users
 
-## Testing Structure
+## State Management
 
-### `tests/` Directory
-- `test_character.py` - CharacterSheet model tests
-- `test_dice.py` - Dice rolling tests
-- `test_rules.py` - Rules engine tests
-- `test_*_agent.py` - Agent-specific tests
-- Use `pytest` with `pytest-asyncio` for async tests
+### FSM Context Storage
+- **Game state**: `{"in_combat": bool, "enemies": list[str], "location": str, "combat_ended": bool, "enemy_attacks": list[dict]}`
+- **Character state**: CharacterSheet object serialized to FSM context
+- Never store state outside FSM in MVP (database is Sprint 3+)
 
-### Test Conventions
+## Testing Conventions
+
 ```python
 import pytest
 
@@ -117,70 +91,28 @@ async def test_agent_execution():
     assert result["key"] == expected_value
 ```
 
-## Documentation Structure
+Tests in `tests/` mirror `app/` structure: `test_character.py`, `test_dice.py`, `test_rules.py`, `test_*_agent.py`
 
-### `docs/` Directory
-- `STRATEGIC_PLAN.md` - Overall architecture and roadmap
-- `SPRINT*_SPEC.md` - Sprint-specific specifications
-- `SPRINT*_CHECKLIST.md` - Task checklists
-- `API_CONTRACTS.md` - Agent communication formats
-- `README.md` - Documentation index
+## Adding New Features
 
-## Configuration Files
+### New Game Mechanics
+1. Implement in `app/game/rules.py` (RulesEngine)
+2. Update `app/game/character.py` if character data changes
+3. Modify Rules Arbiter to detect/resolve new actions
+4. Add tests in `tests/test_rules.py`
 
-### `.env` (not in git)
-Environment-specific secrets and configuration
+### New Agent Capabilities
+1. Update agent's `execute()` in `app/agents/`
+2. Update API contract in `docs/API_CONTRACTS.md`
+3. Adjust downstream agents if output format changes
+4. Add agent-specific tests
 
-### `.env.example`
-Template for required environment variables
+### New Bot Commands
+1. Add handler in `app/bot/handlers.py`
+2. Add Russian text to `app/config/prompts.py`
+3. Register handler in `main.py` dispatcher
+4. Update FSM states if needed
 
-### `pyproject.toml`
-Python project metadata, dependencies, and tool configuration
+## Response Formatting
 
-### `uv.lock`
-Locked dependency versions (auto-generated)
-
-## Import Conventions
-
-Use absolute imports from `app`:
-```python
-from app.agents.base import BaseAgent
-from app.game.character import CharacterSheet
-from app.config.prompts import PROMPTS
-```
-
-## State Management
-
-### FSM States (Aiogram)
-Defined in `app/bot/states.py`:
-- `idle` - No active conversation
-- `in_conversation` - Active game session
-- `character_creation` - Creating new character
-
-### Game State
-Stored in FSM context as dict:
-```python
-{
-    "in_combat": bool,
-    "enemies": list[str],
-    "location": str,
-    "combat_ended": bool,
-    "enemy_attacks": list[dict]
-}
-```
-
-### Character State
-CharacterSheet object serialized to FSM context
-
-## Future Structure (Sprint 3+)
-
-### `app/memory/` - Memory System
-- `episodic.py` - Episodic memory manager
-- `semantic.py` - Semantic memory (lore)
-- `embeddings.py` - Embedding generation
-- `retrieval.py` - RAG pipeline
-
-### `app/db/` - Database Layer
-- `models.py` - SQLAlchemy/Pydantic models
-- `supabase.py` - Supabase client
-- `migrations/` - Database migrations
+Use Telegram Markdown with emojis (⚔️ 🎲 💀 🏹). Combat results show roll details, damage, HP changes. Keep responses concise but immersive.
