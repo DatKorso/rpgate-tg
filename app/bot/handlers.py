@@ -364,18 +364,44 @@ async def handle_conversation(message: Message, state: FSMContext):
             except Exception:
                 pass
         
-        # Send without Markdown parsing
-        await message.answer(final_message)
         # Fallback: send as plain text without formatting
         await message.answer(final_message, parse_mode=None)
 
 
-@router.message(ConversationState.idle)
-async def handle_idle_state(message: Message):
-    """Handler для сообщений в idle состоянии."""
-    await message.answer(
-        "👋 Привет! Используй /start чтобы начать приключение."
-    )
+@router.message(F.text)
+async def handle_any_message(message: Message, state: FSMContext):
+    """
+    Fallback handler для любого текстового сообщения.
+    Проверяет наличие персонажа в БД и восстанавливает сессию.
+    """
+    telegram_user_id = message.from_user.id if message.from_user else 0
+    
+    # Check if character exists in database
+    character = await get_character_by_telegram_id(telegram_user_id)
+    
+    if character:
+        # Character exists - restore conversation state
+        current_state = await state.get_state()
+        
+        if current_state != ConversationState.in_conversation:
+            logger.info(f"Auto-restoring session for user {telegram_user_id} (state was: {current_state})")
+            await state.set_state(ConversationState.in_conversation)
+            
+            # Initialize FSM data if needed
+            data = await state.get_data()
+            if not data.get("character"):
+                await state.update_data(
+                    character=character.model_dump_for_storage(),
+                    history=[]
+                )
+        
+        # Forward to conversation handler
+        await handle_conversation(message, state)
+    else:
+        # No character - show welcome message
+        await message.answer(
+            "👋 Привет! Используй /start чтобы начать приключение."
+        )
 
 
 async def _send_typing_indicator(message: Message):

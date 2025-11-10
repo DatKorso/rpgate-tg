@@ -68,6 +68,11 @@ class ResponseSynthesizerAgent(BaseAgent):
         logger.debug(f"Narrative sanitized length: {len(narrative_sanitized)}, original: {len(narrative)}")
         parts.append(narrative_sanitized)
         
+        # 3. Enemy attacks (if any)
+        enemy_attacks_text = self._format_enemy_attacks(game_state)
+        if enemy_attacks_text:
+            parts.append(enemy_attacks_text)
+        
         # 3. Character status
         status_text = self._format_character_status(character, game_state)
         parts.append(status_text)
@@ -257,6 +262,35 @@ class ResponseSynthesizerAgent(BaseAgent):
         }.get(skill, skill)
         
         return f"{emoji} **Проверка {skill_name_ru}** [{roll_text}{modifier:+d} = {total}] vs DC {dc} {result_emoji} {result_text}"
+    
+    def _format_enemy_attacks(self, game_state: dict) -> str:
+        """
+        Format enemy counter-attacks.
+        
+        Args:
+            game_state: Must contain "enemy_attacks" list
+            
+        Returns:
+            Formatted text or empty string
+        """
+        enemy_attacks = game_state.get("enemy_attacks", [])
+        
+        if not enemy_attacks:
+            return ""
+        
+        lines = []
+        lines.append("⚔️ **Контратака врага:**")
+        
+        for attack in enemy_attacks:
+            attacker = attack.get("attacker", "Враг")
+            damage = attack.get("damage", 0)
+            
+            # Capitalize first letter of enemy name
+            attacker_capitalized = attacker.capitalize()
+            
+            lines.append(f"💔 **{attacker_capitalized}** наносит **{damage} HP** урона!")
+        
+        return "\n".join(lines)
     
     def _format_character_status(self, character: CharacterSheet, game_state: dict) -> str:
         """Format character status line."""

@@ -83,16 +83,34 @@ class NarrativeDirectorAgent(BaseAgent):
             enemies = ", ".join(game_state.get("enemies", []))
             combat_context = f"\n\nТЕКУЩИЙ БОЙ: Игрок сражается с {enemies}"
         
-        # Combat detection instruction
-        # NOTE: Combat state is now generated via separate JSON mode call
-        # No need to include it in narrative prompt
+        # Step 1: Generate combat state first (to know about enemy attacks)
+        game_state_updates = await self._generate_combat_state(
+            user_action, 
+            game_state, 
+            mechanics_result, 
+            success
+        )
         
-        # Format user prompt WITHOUT combat detection (handled separately)
+        # Build enemy attack hint for narrative
+        enemy_attack_hint = ""
+        enemy_attacks = game_state_updates.get("enemy_attacks", [])
+        if enemy_attacks:
+            attacks_desc = []
+            for attack in enemy_attacks:
+                attacker = attack.get("attacker", "враг")
+                damage = attack.get("damage", 0)
+                attacks_desc.append(f"{attacker} ({damage} урона)")
+            
+            enemy_attack_hint = f"\n\nКОНТРАТАКА ВРАГА: {', '.join(attacks_desc)}"
+            enemy_attack_hint += "\nОПИШИ контратаку врага в своём нарративе (1-2 предложения)!"
+        
+        # Format user prompt WITH enemy attack information
         user_prompt = f"""Действие игрока: "{user_action}"
 
 Результат механики: {mechanics_context}
 {hints_text}
 {combat_context}
+{enemy_attack_hint}
 
 Опиши это действие ярко и захватывающе (2-4 предложения)."""
         
@@ -102,7 +120,7 @@ class NarrativeDirectorAgent(BaseAgent):
         ]
         
         try:
-            # Step 1: Generate narrative text
+            # Step 2: Generate narrative text (combat state already generated above)
             response = await llm_client.get_completion(
                 messages=messages,
                 model=self.model,
@@ -110,14 +128,6 @@ class NarrativeDirectorAgent(BaseAgent):
                 max_tokens=self.model_config.max_tokens,
                 frequency_penalty=self.model_config.frequency_penalty,
                 presence_penalty=self.model_config.presence_penalty
-            )
-            
-            # Step 2: Generate combat state as separate JSON call (more reliable)
-            game_state_updates = await self._generate_combat_state(
-                user_action, 
-                game_state, 
-                mechanics_result, 
-                success
             )
             
             narrative = response.strip()
@@ -177,12 +187,12 @@ class NarrativeDirectorAgent(BaseAgent):
    - Если игрок нанёс КРИТИЧЕСКИЙ урон (>15 HP) → враг может быть убит
 
 3. КОНТРАТАКИ ВРАГОВ (enemy_attacks):
-   ВАЖНО: В D&D враги атакуют в свой ход, НЕ как реакция!
+   СТРОГО СЛЕДУЙ ПРАВИЛАМ D&D:
    
-   - Если игрок УСПЕШНО атакует → враг НЕ контратакует (только 20% вероятность)
-   - Если игрок ПРОМАХНУЛСЯ → враг использует момент слабости и контратакует (80% вероятность)
-   - Если игрок делает НЕ атаку (перемещение, лечение) → враг атакует (90% вероятность)
-   - Урон врага: 5-12 HP (зависит от типа врага)
+   - Если игрок УСПЕШНО атакует → враг ОБЫЧНО контратакует (60% вероятность)
+   - Если игрок ПРОМАХНУЛСЯ → враг ВСЕГДА контратакует (использует момент слабости)
+   - Если игрок делает НЕ атаку (перемещение, лечение) → враг атакует (80% вероятность)
+   - Урон врага: 5-12 HP (зависит от типа врага: гоблин 5-7, орк 8-10, волк 6-9)
    - Формат: [{{"attacker": "имя врага", "damage": число}}]
    - Если бой закончен → enemy_attacks = []
 
@@ -193,14 +203,14 @@ class NarrativeDirectorAgent(BaseAgent):
 Примеры:
 
 Пример 1 - НАЧАЛО БОЯ, успешная атака игрока:
-Действие: "Напал на волка с мечом", Результат: ПОПАДАНИЕ
+Действие: "Достаю меч и атакую врага", Результат: ПОПАДАНИЕ (11 урона)
 {{
   "in_combat": true,
-  "enemies": ["серый волк"],
+  "enemies": ["враг"],
   "combat_ended": false,
-  "enemy_attacks": []
+  "enemy_attacks": [{{"attacker": "враг", "damage": 8}}]
 }}
-(Враг НЕ контратакует, так как игрок успешно атаковал)
+(Враг контратакует в свой ход)
 
 Пример 2 - БОЙ ПРОДОЛЖАЕТСЯ, промах игрока:
 Действие: "Атакую гоблина", Результат: ПРОМАХ
@@ -208,7 +218,7 @@ class NarrativeDirectorAgent(BaseAgent):
   "in_combat": true,
   "enemies": ["гоблин"],
   "combat_ended": false,
-  "enemy_attacks": [{{"attacker": "гоблин", "damage": 9}}]
+  "enemy_attacks": [{{"attacker": "гоблин", "damage": 6}}]
 }}
 (Враг использует момент слабости и контратакует)
 
