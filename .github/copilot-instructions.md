@@ -72,9 +72,9 @@ Memory Manager → [Rules Arbiter + Narrative Director (parallel)] → World Sta
 - `app/config/schemas.py` - Pydantic schemas for structured data
 
 ### Documentation
-- `docs/STRATEGIC_PLAN.md` - Architectural "bible" (decisions, roadmap)
- - `docs/SPRINT3_PROGRESS.md` - Consolidated Sprint 3 (integration + summary)
- - `docs/API_CONTRACTS.md` - Agent input/output JSON schemas
+- `docs/architecture/STRATEGIC_PLAN.md` - Architectural "bible" (decisions, roadmap)
+- `docs/development/SPRINT3_PROGRESS.md` - Consolidated Sprint 3 (integration + summary)
+- `docs/architecture/API_CONTRACTS.md` - Agent input/output JSON schemas
 
 ## Development Workflows
 
@@ -172,7 +172,7 @@ await update_character(character)
 
 ### Agent Input/Output Contracts
 
-All agents follow strict JSON schemas (see `docs/API_CONTRACTS.md`). Example:
+All agents follow strict JSON schemas (see `docs/architecture/API_CONTRACTS.md`). Example:
 
 ```python
 # Rules Arbiter Output
@@ -338,9 +338,9 @@ Returns plain string. Error handling is built-in (rate limits, API errors).
 
 ## When You're Stuck
 
-1. **Architectural questions:** Read `docs/STRATEGIC_PLAN.md` for the "why"
-2. **Implementation details:** Use `docs/SPRINT3_PROGRESS.md` (integration + summary consolidated)
-3. **Data formats:** Consult `docs/API_CONTRACTS.md` for JSON schemas
+1. **Architectural questions:** Read `docs/architecture/STRATEGIC_PLAN.md` for the "why"
+2. **Implementation details:** Use `docs/development/SPRINT3_PROGRESS.md` (integration + summary consolidated)
+3. **Data formats:** Consult `docs/architecture/API_CONTRACTS.md` for JSON schemas
 4. **Code examples:** Look at existing agents in `app/agents/` or handlers in `app/bot/`
 5. **Setup issues:** Run `uv run python scripts/check_week3_setup.py` to diagnose
 6. **Database schema:** See `app/db/migrations/001_initial_schema.sql`

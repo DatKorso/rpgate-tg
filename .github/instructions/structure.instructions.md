@@ -11,7 +11,7 @@ Fixed execution order: **Rules Arbiter → Narrative Director → Response Synth
 - All agents inherit from `BaseAgent` and implement `async def execute(context: dict[str, Any]) -> dict[str, Any]`
 - `orchestrator.py` coordinates workflow, never generates content
 - Agent configs (model, temperature) in `app/config/models.py`
-- Agent communication contracts in `docs/API_CONTRACTS.md`
+- Agent communication contracts in `docs/architecture/API_CONTRACTS.md`
 
 ### `app/bot/` - Telegram Layer
 - `handlers.py` - Command/message handlers (all async)
@@ -103,9 +103,10 @@ Tests in `tests/` mirror `app/` structure: `test_character.py`, `test_dice.py`, 
 
 ### New Agent Capabilities
 1. Update agent's `execute()` in `app/agents/`
-2. Update API contract in `docs/API_CONTRACTS.md`
+2. Update API contract in `docs/architecture/API_CONTRACTS.md`
 3. Adjust downstream agents if output format changes
 4. Add agent-specific tests
+5. Document changes in `docs/development/CHANGELOG.md`
 
 ### New Bot Commands
 1. Add handler in `app/bot/handlers.py`

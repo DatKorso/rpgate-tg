@@ -38,7 +38,7 @@ AI-powered Telegram bot that runs D&D-style RPG sessions. Players interact in na
 
 When modifying agents:
 - Each agent has specific responsibilities - don't blur boundaries
-- Agents communicate via structured dicts (see `docs/API_CONTRACTS.md`)
+- Agents communicate via structured dicts (see `docs/architecture/API_CONTRACTS.md`)
 - All agents inherit from `BaseAgent` and implement `execute()`
 - Agent configs (model, temperature) are in `app/config/models.py`
 
@@ -71,9 +71,10 @@ When modifying agents:
 
 ### Adding New Agent Capabilities
 1. Update agent's `execute()` method in `app/agents/`
-2. Update API contract in `docs/API_CONTRACTS.md`
+2. Update API contract in `docs/architecture/API_CONTRACTS.md`
 3. Adjust downstream agents if output format changes
 4. Add agent-specific tests
+5. Document changes in `docs/development/CHANGELOG.md`
 
 ### Adding New Bot Commands
 1. Add handler in `app/bot/handlers.py`
