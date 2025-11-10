@@ -11,9 +11,19 @@ from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, C
 from app.bot.states import ConversationState
 from app.agents.orchestrator import AgentOrchestrator
 from app.game.character import CharacterSheet
-from app.config.prompts import UIPrompts, CombatPrompts
-from app.db.characters import get_character_by_telegram_id, create_character, update_character
+from app.config.prompts import UIPrompts, CombatPrompts, SettingsPrompts
+from app.db.characters import (
+    get_character_by_telegram_id,
+    create_character,
+    update_character,
+    delete_character,
+)
 from app.db.sessions import get_or_create_session, update_session_stats
+from app.db.user_settings import (
+    get_user_settings_by_telegram_id,
+    create_or_update_user_settings,
+    update_combat_enabled,
+)
 from app.agents.world_state import world_state_agent
 
 
@@ -29,16 +39,27 @@ orchestrator = AgentOrchestrator()
 
 @router.message(Command("start"))
 async def cmd_start(message: Message, state: FSMContext):
-    """Handler для команды /start с inline keyboard."""
+    """Handler для команды /start с inline keyboard.
+
+    Adds full reset option if character exists in DB.
+    """
     await state.set_state(ConversationState.idle)
-    
-    # Create inline keyboard
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+
+    telegram_user_id = message.from_user.id if message.from_user else 0
+    existing_character = await get_character_by_telegram_id(telegram_user_id)
+
+    buttons = [
         [InlineKeyboardButton(text="⚔️ Новое приключение", callback_data="new_adventure")],
         [InlineKeyboardButton(text="📖 Продолжить игру", callback_data="continue_game")],
         [InlineKeyboardButton(text="ℹ️ Помощь", callback_data="show_help")]
-    ])
-    
+    ]
+
+    # Offer full reset only if character exists
+    if existing_character:
+        buttons.append([InlineKeyboardButton(text="🧨 Полный сброс", callback_data="full_reset")])
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+
     await message.answer(
         UIPrompts.WELCOME,
         reply_markup=keyboard,
@@ -59,11 +80,85 @@ async def callback_new_adventure(callback: CallbackQuery, state: FSMContext):
         [InlineKeyboardButton(text="🗡️ Плут", callback_data="class_rogue")]
     ])
     
-    await callback.message.edit_text(
-        UIPrompts.CHARACTER_CREATION,
-        reply_markup=keyboard,
-        parse_mode="Markdown"
-    )
+    if callback.message:
+        await callback.message.edit_text(  # type: ignore[attr-defined]
+            UIPrompts.CHARACTER_CREATION,
+            reply_markup=keyboard,
+            parse_mode="Markdown"
+        )
+
+
+@router.callback_query(F.data == "full_reset")
+async def callback_full_reset(callback: CallbackQuery, state: FSMContext):
+    """Initiate full reset confirmation flow."""
+    await callback.answer()
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Да, удалить всё", callback_data="confirm_full_reset")],
+        [InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_full_reset")]
+    ])
+    if callback.message:
+        await callback.message.edit_text(  # type: ignore[attr-defined]
+            UIPrompts.FULL_RESET_WARNING,
+            reply_markup=keyboard,
+            parse_mode="Markdown"
+        )
+
+
+@router.callback_query(F.data == "cancel_full_reset")
+async def callback_cancel_full_reset(callback: CallbackQuery, state: FSMContext):
+    """Cancel full reset and return to start menu."""
+    await callback.answer()
+    telegram_user_id = callback.from_user.id if callback.from_user else 0
+    existing_character = await get_character_by_telegram_id(telegram_user_id)
+    buttons = [
+        [InlineKeyboardButton(text="⚔️ Новое приключение", callback_data="new_adventure")],
+        [InlineKeyboardButton(text="📖 Продолжить игру", callback_data="continue_game")],
+        [InlineKeyboardButton(text="ℹ️ Помощь", callback_data="show_help")]
+    ]
+    if existing_character:
+        buttons.append([InlineKeyboardButton(text="🧨 Полный сброс", callback_data="full_reset")])
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+    if callback.message:
+        await callback.message.edit_text(  # type: ignore[attr-defined]
+            UIPrompts.FULL_RESET_CANCELLED,
+            reply_markup=keyboard,
+            parse_mode="Markdown"
+        )
+
+
+@router.callback_query(F.data == "confirm_full_reset")
+async def callback_confirm_full_reset(callback: CallbackQuery, state: FSMContext):
+    """Perform full reset: delete character and cascade-related data, then show class selection."""
+    await callback.answer()
+    telegram_user_id = callback.from_user.id if callback.from_user else 0
+    existing_character = await get_character_by_telegram_id(telegram_user_id)
+    if existing_character:
+        deleted = await delete_character(existing_character.id)
+        if not deleted:
+            if callback.message:
+                await callback.message.edit_text(  # type: ignore[attr-defined]
+                    UIPrompts.FULL_RESET_ERROR,
+                    parse_mode="Markdown"
+                )
+            return
+        logger.info(f"Full reset completed for user {telegram_user_id} (character {existing_character.id})")
+    # Clear FSM state entirely
+    await state.clear()
+    await state.set_state(ConversationState.idle)
+
+    # Provide class selection keyboard for fresh creation
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⚔️ Воин", callback_data="class_warrior")],
+        [InlineKeyboardButton(text="🏹 Следопыт", callback_data="class_ranger")],
+        [InlineKeyboardButton(text="🔮 Маг", callback_data="class_mage")],
+        [InlineKeyboardButton(text="🗡️ Плут", callback_data="class_rogue")]
+    ])
+    if callback.message:
+        await callback.message.edit_text(  # type: ignore[attr-defined]
+            UIPrompts.FULL_RESET_DONE,
+            reply_markup=keyboard,
+            parse_mode="Markdown"
+        )
 
 
 @router.callback_query(F.data == "continue_game")
@@ -75,24 +170,27 @@ async def callback_continue_game(callback: CallbackQuery, state: FSMContext):
     character_data = data.get("character")
     
     if not character_data:
-        await callback.message.edit_text(
-            "❌ У тебя ещё нет персонажа. Создай нового героя!",
-            parse_mode="Markdown"
-        )
+        if callback.message:
+            await callback.message.edit_text(  # type: ignore[attr-defined]
+                "❌ У тебя ещё нет персонажа. Создай нового героя!",
+                parse_mode="Markdown"
+            )
         return
     
     await state.set_state(ConversationState.in_conversation)
-    await callback.message.edit_text(
-        "📖 **Игра продолжается!**\n\nЧто ты хочешь сделать?",
-        parse_mode="Markdown"
-    )
+    if callback.message:
+        await callback.message.edit_text(  # type: ignore[attr-defined]
+            "📖 **Игра продолжается!**\n\nЧто ты хочешь сделать?",
+            parse_mode="Markdown"
+        )
 
 
 @router.callback_query(F.data == "show_help")
 async def callback_show_help(callback: CallbackQuery):
     """Show help message."""
     await callback.answer()
-    await callback.message.edit_text(UIPrompts.HELP, parse_mode="Markdown")
+    if callback.message:
+        await callback.message.edit_text(UIPrompts.HELP, parse_mode="Markdown")  # type: ignore[attr-defined]
 
 
 @router.callback_query(F.data.startswith("class_"))
@@ -173,7 +271,24 @@ async def callback_select_class(callback: CallbackQuery, state: FSMContext):
         # Load existing character
         existing_character = await get_character_by_telegram_id(telegram_user_id)
         if existing_character:
+            # Reset existing character stats to selected class for a true "new adventure"
             character = existing_character
+            character.strength = stats.get("strength", character.strength)
+            character.dexterity = stats.get("dexterity", character.dexterity)
+            character.constitution = stats.get("constitution", character.constitution)
+            character.intelligence = stats.get("intelligence", character.intelligence)
+            character.wisdom = stats.get("wisdom", character.wisdom)
+            character.charisma = stats.get("charisma", character.charisma)
+            character.max_hp = stats["max_hp"]
+            character.hp = stats["max_hp"]  # ensure full HP on new start
+            character.armor_class = stats["armor_class"]
+            character.level = 1
+            character.xp = 0
+            character.inventory = ["меч", "кожаная броня", "зелье лечения"]
+            character.location = "ancient_ruins"
+            # Persist updated stats
+            await update_character(character)
+            logger.info(f"Reset existing character {character.name} for new adventure (class={class_name})")
     
     # Initialize game state (will be saved to DB on first action)
     game_state = {
@@ -216,7 +331,7 @@ async def callback_select_class(callback: CallbackQuery, state: FSMContext):
     )
     
     if callback.message:
-        await callback.message.edit_text(message_text, parse_mode="Markdown")
+        await callback.message.edit_text(message_text, parse_mode="Markdown")  # type: ignore[attr-defined]
 
 
 @router.message(Command("help"))
@@ -229,6 +344,49 @@ async def cmd_help(message: Message):
 async def cmd_ping(message: Message):
     """Handler для команды /ping."""
     await message.answer("🟢 Bot is online and ready!")
+
+
+@router.message(Command("settings"))
+async def cmd_settings(message: Message):
+    """Show user settings and provide toggle instructions."""
+    telegram_user_id = message.from_user.id if message.from_user else 0
+    settings = await get_user_settings_by_telegram_id(telegram_user_id)
+    if settings is None:
+        # Create default settings (combat enabled)
+        settings = await create_or_update_user_settings(telegram_user_id, combat_enabled=True)
+    combat_status = "Включена" if settings.get("combat_enabled", True) else "Отключена"
+    text = SettingsPrompts.SETTINGS_HEADER.format(combat_status=combat_status)
+    await message.answer(text, parse_mode="Markdown")
+
+
+@router.message(Command("combat_off"))
+async def cmd_combat_off(message: Message):
+    """Disable combat mechanics for narrative-only mode."""
+    telegram_user_id = message.from_user.id if message.from_user else 0
+    settings = await get_user_settings_by_telegram_id(telegram_user_id)
+    if settings and not settings.get("combat_enabled", True):
+        await message.answer(SettingsPrompts.COMBAT_ALREADY_DISABLED)
+        return
+    success = await update_combat_enabled(telegram_user_id, enabled=False)
+    if success:
+        await message.answer(SettingsPrompts.COMBAT_DISABLED_CONFIRM)
+    else:
+        await message.answer(SettingsPrompts.ERROR_SETTINGS)
+
+
+@router.message(Command("combat_on"))
+async def cmd_combat_on(message: Message):
+    """Enable combat mechanics again."""
+    telegram_user_id = message.from_user.id if message.from_user else 0
+    settings = await get_user_settings_by_telegram_id(telegram_user_id)
+    if settings and settings.get("combat_enabled", True):
+        await message.answer(SettingsPrompts.COMBAT_ALREADY_ENABLED)
+        return
+    success = await update_combat_enabled(telegram_user_id, enabled=True)
+    if success:
+        await message.answer(SettingsPrompts.COMBAT_ENABLED_CONFIRM)
+    else:
+        await message.answer(SettingsPrompts.ERROR_SETTINGS)
 
 @router.message(Command("reset"))
 async def cmd_reset(message: Message, state: FSMContext):
@@ -263,6 +421,11 @@ async def handle_conversation(message: Message, state: FSMContext):
             await message.answer(UIPrompts.ERROR_NO_CHARACTER)
             return
     
+    # Load user settings (combat toggle)
+    user_settings = await get_user_settings_by_telegram_id(telegram_user_id)
+    if user_settings is None:
+        user_settings = await create_or_update_user_settings(telegram_user_id, combat_enabled=True)
+
     # Get or create session
     session_id = await get_or_create_session(character.id)
     
@@ -285,7 +448,8 @@ async def handle_conversation(message: Message, state: FSMContext):
             game_state=game_state,
             character_id=character.id,  # For memory retrieval
             session_id=session_id,  # For memory context
-            recent_history=recent_messages
+            recent_history=recent_messages,
+            user_settings=user_settings
         )
     except Exception as e:
         logger.error(f"Error processing action: {e}", exc_info=True)

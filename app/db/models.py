@@ -60,3 +60,12 @@ class WorldStateDB(BaseModel):
     state_data: dict
     version: int = 1
     updated_at: datetime
+
+
+class UserSettingsDB(BaseModel):
+    """Per-user settings (combat toggle, etc.)."""
+    id: UUID
+    telegram_user_id: int
+    combat_enabled: bool = True
+    created_at: datetime
+    updated_at: datetime

@@ -43,7 +43,8 @@ class AgentOrchestrator:
         session_id: Optional[UUID] = None,
         recent_history: Optional[list[str]] = None,
         target_ac: int = 12,
-        dc: int = 15
+        dc: int = 15,
+        user_settings: Optional[dict] = None,
     ) -> tuple[str, CharacterSheet, dict]:
         """
         Process user action through enhanced agent system (Sprint 3).
@@ -95,7 +96,8 @@ class AgentOrchestrator:
             "game_state": game_state,
             "memory_context": memory_summary,  # Add memory context
             "target_ac": target_ac,
-            "dc": dc
+            "dc": dc,
+            "user_settings": user_settings or {"combat_enabled": True},
         }
         rules_output = await self.rules_arbiter.execute(rules_context)
         
@@ -145,7 +147,8 @@ class AgentOrchestrator:
             "mechanics_result": rules_output["mechanics_result"],
             "character": updated_character,
             "action_type": rules_output["action_type"],
-            "game_state": updated_game_state
+            "game_state": updated_game_state,
+            "user_settings": user_settings or {"combat_enabled": True},
         }
         synthesizer_output = await self.response_synthesizer.execute(synthesizer_context)
         

@@ -141,6 +141,32 @@ class RulesArbiterAgent(BaseAgent):
         user_action = context["user_action"]
         character = context["character"]
         game_state = context.get("game_state", {})
+        user_settings = context.get("user_settings", {"combat_enabled": True})
+
+        # Early exit: combat disabled -> narrative-only mode
+        if not user_settings.get("combat_enabled", True):
+            intent = {
+                "action_type": "narrative_only",
+                "requires_roll": False,
+                "roll_type": None,
+                "skill": None,
+                "target": None,
+                "difficulty": None,
+                "reasoning": "Combat disabled - narrative mode"
+            }
+            mechanics_result = {
+                "message": "Combat system disabled - narrative mode active",
+                "combat_disabled": True
+            }
+            output = {
+                "action_type": "narrative_only",
+                "intent": intent,
+                "mechanics_result": mechanics_result,
+                "success": True,
+                "narrative_hints": ["narrative_only"],
+            }
+            self.log_execution(context, output)
+            return output
         
         # Step 1: Analyze intent via LLM
         intent = await self._analyze_intent(user_action, character, game_state)

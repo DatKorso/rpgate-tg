@@ -1,8 +1,10 @@
-"""Test database connection."""
+"""Test database connection (async, marked for pytest)."""
 import asyncio
+import pytest
 from app.config import settings
 
 
+@pytest.mark.asyncio
 async def test_db_connection():
     """Test database connection and display status."""
     print("=" * 60)
@@ -41,24 +43,25 @@ async def test_db_connection():
     
     try:
         import asyncpg
-        
-        conn = await asyncpg.connect(settings.supabase_db_url, timeout=10.0)
+        conn = await asyncpg.connect(settings.supabase_db_url, timeout=10)
         print("✅ Connection established!")
-        
+
         # Get PostgreSQL version
         version = await conn.fetchval("SELECT version()")
         print(f"\n📊 PostgreSQL version:")
         print(f"   {version.split(',')[0]}")
-        
+
         # Check tables
-        tables = await conn.fetch("""
+        tables = await conn.fetch(
+            """
             SELECT table_name 
             FROM information_schema.tables 
             WHERE table_schema = 'public' 
             AND table_type = 'BASE TABLE'
             ORDER BY table_name
-        """)
-        
+            """
+        )
+
         if tables:
             print(f"\n📁 Tables ({len(tables)}):")
             for table in tables:
@@ -66,20 +69,20 @@ async def test_db_connection():
         else:
             print("\n⚠️  No tables found. Run migration:")
             print("   uv run python scripts/apply_migration.py")
-        
+
         # Check pgvector extension
         has_vector = await conn.fetchval(
             "SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'vector')"
         )
-        
+
         if has_vector:
             print("\n✅ pgvector extension: Enabled")
         else:
             print("\n⚠️  pgvector extension: Not enabled")
             print("   Run migration to enable it")
-        
+
         await conn.close()
-        
+
         print("\n" + "=" * 60)
         print("✅ Database connection test PASSED")
         print("=" * 60)
