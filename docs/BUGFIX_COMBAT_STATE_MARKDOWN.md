@@ -1,3 +1,4 @@
+# --- DEPRECATED: Consolidated into CHANGELOG.md. Use CHANGELOG.md for authoritative fix history. ---
 # Bug Fixes: Combat State & Markdown Formatting
 
 **Date:** 2025-11-07  

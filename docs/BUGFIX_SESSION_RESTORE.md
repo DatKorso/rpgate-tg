@@ -1,3 +1,4 @@
+# --- DEPRECATED: Consolidated into CHANGELOG.md. Use CHANGELOG.md for authoritative fix history. ---
 # Bugfix: Auto-Restore Session After Bot Restart
 
 ## Problem

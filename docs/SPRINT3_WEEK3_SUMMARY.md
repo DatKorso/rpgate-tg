@@ -1,3 +1,4 @@
+# --- DEPRECATED: Consolidated into SPRINT3_PROGRESS.md. This week-level artifact retained only for historical reference. ---
 # Sprint 3 Week 3: Integration & Polish - Summary
 
 ## 🎉 Completion Status: ✅ COMPLETE

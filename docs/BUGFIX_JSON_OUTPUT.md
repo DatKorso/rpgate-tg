@@ -1,3 +1,4 @@
+# --- DEPRECATED: Consolidated into CHANGELOG.md. Use CHANGELOG.md for authoritative fix history. ---
 # Исправление проблемы с JSON в итоговом сообщении
 
 ## Проблема

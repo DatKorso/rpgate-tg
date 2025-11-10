@@ -1,3 +1,4 @@
+# --- DEPRECATED: Typo filename. Use development-plan.md instead. ---
 Отлично! Вот детальная спецификация Sprint 1 для AI code agent с пошаговыми инструкциями и структурой проекта.
 
 ## Sprint 1: Foundation — Детальная спецификация

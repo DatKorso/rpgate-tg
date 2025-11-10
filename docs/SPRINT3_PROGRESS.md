@@ -155,10 +155,9 @@
 **Total Tests:** 93/93 all tests passed ✅
 
 #### Documentation ✅
-- Created `docs/SPRINT3_WEEK3.md` - Integration guide
-- Created `docs/SPRINT3_WEEK3_CHECKLIST.md` - Task tracker
-- Created `docs/SPRINT3_WEEK3_SUMMARY.md` - Summary report
-- Created `docs/QUICK_START_WEEK3.md` - Quick reference
+Consolidated Week 3 integration, checklist and summary into a single progress artifact. Removed per-week docs for reduced redundancy.
+- Kept `docs/QUICK_START_WEEK3.md` (quick reference)
+- Removed: SPRINT3_WEEK3.md, SPRINT3_WEEK3_CHECKLIST.md, SPRINT3_WEEK3_SUMMARY.md
 
 #### Bug Fixes ✅
 - ✅ Fixed JSONB serialization in `characters.py`
@@ -260,9 +259,7 @@ rpgate-tg/
 │   ├── SPRINT3_CHANGES_SUMMARY.md          # ✅ Created - Week 2 summary
 │   ├── SPRINT3_UPDATED.md                  # ✅ Created - Week 2 updates
 │   ├── HALFVEC_MIGRATION.md                # ✅ Created - Migration guide
-│   ├── SPRINT3_WEEK3.md                    # ✅ NEW - Integration guide
-│   ├── SPRINT3_WEEK3_CHECKLIST.md          # ✅ NEW - Task tracker
-│   ├── SPRINT3_WEEK3_SUMMARY.md            # ✅ NEW - Summary report
+│   ├── (Week 3 docs consolidated here)
 │   ├── QUICK_START_WEEK3.md                # ✅ NEW - Quick reference
 │   └── SPRINT3_PROGRESS.md                 # ✅ This file
 └── .env.example                            # ✅ Updated - All new vars

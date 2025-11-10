@@ -1,3 +1,4 @@
+# --- DEPRECATED: Consolidated into CHANGELOG.md. Use CHANGELOG.md for authoritative fix history. ---
 # Bugfix: Enemy Counterattack Display
 
 **Дата:** 10 ноября 2025  

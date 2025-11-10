@@ -1,3 +1,4 @@
+# --- DEPRECATED: Consolidated into CHANGELOG.md. Use CHANGELOG.md for authoritative fix history. ---
 # Markdown Parsing Fix
 
 ## Проблема

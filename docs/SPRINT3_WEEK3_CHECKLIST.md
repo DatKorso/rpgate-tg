@@ -1,3 +1,4 @@
+# --- DEPRECATED: Consolidated into SPRINT3_PROGRESS.md. This week-level artifact retained only for historical reference. ---
 # Sprint 3 Week 3 Checklist: Integration & Polish
 
 ## ✅ Task 3.1-3.2: Character & Session Persistence

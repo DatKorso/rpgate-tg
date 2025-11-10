@@ -73,9 +73,8 @@ Memory Manager → [Rules Arbiter + Narrative Director (parallel)] → World Sta
 
 ### Documentation
 - `docs/STRATEGIC_PLAN.md` - Architectural "bible" (decisions, roadmap)
-- `docs/SPRINT3_WEEK3_SUMMARY.md` - **Latest completion summary**
-- `docs/API_CONTRACTS.md` - Agent input/output JSON schemas
-- `docs/SPRINT3_WEEK3.md` - Integration guide
+ - `docs/SPRINT3_PROGRESS.md` - Consolidated Sprint 3 (integration + summary)
+ - `docs/API_CONTRACTS.md` - Agent input/output JSON schemas
 
 ## Development Workflows
 
@@ -340,7 +339,7 @@ Returns plain string. Error handling is built-in (rate limits, API errors).
 ## When You're Stuck
 
 1. **Architectural questions:** Read `docs/STRATEGIC_PLAN.md` for the "why"
-2. **Implementation details:** Check `docs/SPRINT3_WEEK3.md` for integration guide
+2. **Implementation details:** Use `docs/SPRINT3_PROGRESS.md` (integration + summary consolidated)
 3. **Data formats:** Consult `docs/API_CONTRACTS.md` for JSON schemas
 4. **Code examples:** Look at existing agents in `app/agents/` or handlers in `app/bot/`
 5. **Setup issues:** Run `uv run python scripts/check_week3_setup.py` to diagnose
